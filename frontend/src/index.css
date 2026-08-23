@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+
+  /* NOVA OS brand — deep indigo/violet, professional SaaS feel. These raw accent
+     shades stay constant across themes (used for solid buttons/borders/text-on-white);
+     only the *-tint / *-tint-fg pairs below shift per theme. */
+  --color-brand-50: #f2f1ff;
+  --color-brand-100: #e6e4ff;
+  --color-brand-200: #d0ccff;
+  --color-brand-300: #aca4ff;
+  --color-brand-400: #8b7bff;
+  --color-brand-500: #6d54fb;
+  --color-brand-600: #5936ee;
+  --color-brand-700: #4a29c9;
+  --color-brand-800: #3c23a3;
+  --color-brand-900: #332082;
+
+  --color-success-500: #16a34a;
+  --color-warning-500: #d97706;
+  --color-danger-500: #dc2626;
+  --color-info-500: #2563eb;
+
+  /* Secondary accent — comparison chart series, secondary donut slice */
+  --color-accent2-500: #0d9488;
+
+  /* Semantic surface/text tokens — redefined per theme below */
+  --color-canvas: #f4f5f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #f4f5f9;
+  --color-border: #e6e8f0;
+  --color-fg: #10121c;
+  --color-fg-muted: #656a7f;
+  --color-fg-subtle: #9297ac;
+
+  /* Tint pairs — chip/badge backgrounds paired with legible text, redefined per theme */
+  --color-brand-tint: #f2f1ff;
+  --color-brand-tint-fg: #4a29c9;
+  --color-success-tint: #dcfce7;
+  --color-success-tint-fg: #16a34a;
+  --color-warning-tint: #fef3c7;
+  --color-warning-tint-fg: #d97706;
+  --color-danger-tint: #fee2e2;
+  --color-danger-tint-fg: #dc2626;
+  --color-info-tint: #dbeafe;
+  --color-info-tint-fg: #2563eb;
+  --color-accent2-tint: #ccfbf1;
+  --color-accent2-tint-fg: #0f766e;
+}
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-canvas: #f4f5f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #f4f5f9;
+  --color-border: #e6e8f0;
+  --color-fg: #10121c;
+  --color-fg-muted: #656a7f;
+  --color-fg-subtle: #9297ac;
+
+  --color-brand-tint: #f2f1ff;
+  --color-brand-tint-fg: #4a29c9;
+  --color-success-tint: #dcfce7;
+  --color-success-tint-fg: #16a34a;
+  --color-warning-tint: #fef3c7;
+  --color-warning-tint-fg: #d97706;
+  --color-danger-tint: #fee2e2;
+  --color-danger-tint-fg: #dc2626;
+  --color-info-tint: #dbeafe;
+  --color-info-tint-fg: #2563eb;
+  --color-accent2-500: #0d9488;
+  --color-accent2-tint: #ccfbf1;
+  --color-accent2-tint-fg: #0f766e;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-canvas: #0a0b11;
+  --color-surface: #14151f;
+  --color-surface-2: #1b1d29;
+  --color-border: #2a2c3b;
+  --color-fg: #f2f3f8;
+  --color-fg-muted: #9297ac;
+  --color-fg-subtle: #5b5f74;
+
+  --color-brand-tint: #201c3a;
+  --color-brand-tint-fg: #b7ace9;
+  --color-success-tint: #123020;
+  --color-success-tint-fg: #4ade80;
+  --color-warning-tint: #3a2a0d;
+  --color-warning-tint-fg: #fbbf24;
+  --color-danger-tint: #3a1518;
+  --color-danger-tint-fg: #f87171;
+  --color-info-tint: #12233d;
+  --color-info-tint-fg: #60a5fa;
+  --color-accent2-500: #2dd4bf;
+  --color-accent2-tint: #0f2e2b;
+  --color-accent2-tint-fg: #5eead4;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+* {
+  box-sizing: border-box;
+}

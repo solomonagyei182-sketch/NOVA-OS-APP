@@ -1,0 +1,224 @@
+// NOVA OS — Prisma schema (SQLite; swap `provider` to "postgresql" and update
+// DATABASE_URL when moving to a hosted Postgres instance, everything else stays the same)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// prisma 6.x — classic config, `url` read from DATABASE_URL via schema datasource
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MANAGER
+  COUNTER
+  // Assigned automatically on self-registration; cannot sign in until an
+  // Admin promotes the account to MANAGER or COUNTER from the Staff page.
+  PENDING
+}
+
+enum CustomerTier {
+  TIER_1
+  TIER_2
+  TIER_3
+}
+
+enum StockMovementType {
+  WAREHOUSE_IN
+  TRANSFER_TO_SHOP
+}
+
+enum DayStatus {
+  OPEN
+  CLOSED
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ResellerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum SessionStatus {
+  ACTIVE
+  ENDED
+}
+
+enum SessionEndReason {
+  LOGOUT
+  EXPIRED
+  ADMIN_DROP
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         Role
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  counterSales   Sale[]          @relation("CounterSales")
+  stockMovements StockMovement[]
+  auditLogs      AuditLog[]
+  closedDays     BusinessDay[]   @relation("ClosedBy")
+  reopenedDays   BusinessDay[]   @relation("ReopenedBy")
+  sessions       Session[]       @relation("UserSessions")
+  endedSessions  Session[]       @relation("SessionEndedBy")
+}
+
+model Session {
+  id             String            @id @default(cuid())
+  userId         String
+  user           User              @relation("UserSessions", fields: [userId], references: [id])
+  role           Role
+  status         SessionStatus     @default(ACTIVE)
+  userAgent      String?
+  createdAt      DateTime          @default(now())
+  expiresAt      DateTime
+  lastActivityAt DateTime          @default(now())
+  endedAt        DateTime?
+  endReason      SessionEndReason?
+  endedById      String?
+  endedBy        User?             @relation("SessionEndedBy", fields: [endedById], references: [id])
+
+  @@index([userId])
+  @@index([role, status])
+  @@index([status])
+}
+
+model Product {
+  id                String        @id @default(cuid())
+  name              String        @unique
+  sku               String?       @unique
+  category          String?
+  costPrice         Float?
+  sellingPrice      Float?
+  warehouseQty      Int           @default(0)
+  shopQty           Int           @default(0)
+  lowStockThreshold Int           @default(10)
+  status            ProductStatus @default(ACTIVE)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  sales          Sale[]
+  stockMovements StockMovement[]
+}
+
+model Reseller {
+  id        String         @id @default(cuid())
+  fullName  String
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  status    ResellerStatus @default(ACTIVE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  sales Sale[]
+
+  @@index([fullName])
+  @@index([status])
+}
+
+model BusinessSettings {
+  id                       String @id @default(cuid())
+  businessName             String?
+  currencySymbol           String @default("₦")
+  defaultLowStockThreshold Int    @default(10)
+}
+
+model StockMovement {
+  id        String            @id @default(cuid())
+  productId String
+  product   Product           @relation(fields: [productId], references: [id])
+  type      StockMovementType
+  quantity  Int
+  performedById String
+  performedBy   User          @relation(fields: [performedById], references: [id])
+  createdAt DateTime          @default(now())
+
+  @@index([productId])
+  @@index([createdAt])
+}
+
+model BusinessDay {
+  id           String    @id @default(cuid())
+  date         String    @unique // YYYY-MM-DD
+  status       DayStatus @default(OPEN)
+  closedAt     DateTime?
+  closedById   String?
+  closedBy     User?     @relation("ClosedBy", fields: [closedById], references: [id])
+  reopenedAt   DateTime?
+  reopenedById String?
+  reopenedBy   User?     @relation("ReopenedBy", fields: [reopenedById], references: [id])
+
+  sales Sale[]
+
+  @@index([status])
+}
+
+model Sale {
+  id            String   @id @default(cuid())
+  transactionId String   @unique
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  resellerId    String?
+  reseller      Reseller? @relation(fields: [resellerId], references: [id])
+  counterUserId String
+  counterUser   User      @relation("CounterSales", fields: [counterUserId], references: [id])
+  quantity      Int      @default(1)
+  unitPrice     Float?
+  price         Float
+  commission    Float
+  dayId         String
+  day           BusinessDay @relation(fields: [dayId], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([productId])
+  @@index([resellerId])
+  @@index([counterUserId])
+  @@index([dayId])
+  @@index([createdAt])
+}
+
+model Customer {
+  id                String       @id @default(cuid())
+  fullName          String
+  email             String?
+  phone             String?
+  notes             String?
+  tier              CustomerTier @default(TIER_1)
+  lastInteractionAt DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([tier])
+  @@index([fullName])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String?
+  details    String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([entityType])
+}
