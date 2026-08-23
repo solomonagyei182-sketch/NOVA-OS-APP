@@ -55,17 +55,28 @@ export class SalesService {
       if (product.status !== 'ACTIVE') {
         throw new BadRequestException('This product is inactive and cannot be selected for new sales.');
       }
-      if (product.shopQty < quantity) {
-        throw new BadRequestException('Insufficient stock available.');
-      }
 
-      const updatedProduct = await tx.product.update({
-        where: { id: dto.productId },
+      // Condition the UPDATE on having enough stock rather than checking then
+      // writing separately — under concurrent sales of the same product, two
+      // reads could both pass a standalone check before either commits,
+      // driving shopQty negative. This makes it one atomic database operation.
+      const result = await tx.product.updateMany({
+        where: { id: dto.productId, shopQty: { gte: quantity } },
         data: { shopQty: { decrement: quantity } },
       });
+      if (result.count === 0) {
+        throw new BadRequestException('Insufficient stock available.');
+      }
+      const updatedProduct = await tx.product.findUniqueOrThrow({ where: { id: dto.productId } });
 
-      const salesTodayCount = await tx.sale.count({ where: { dayId: day.id } });
-      const transactionId = `SL-${day.date.replace(/-/g, '')}-${String(salesTodayCount + 1).padStart(4, '0')}`;
+      // Atomic increment on the day row — safe under concurrent writers (Postgres
+      // serializes UPDATEs to the same row), unlike a count()-then-insert approach
+      // which two simultaneous sales could both read before either commits.
+      const updatedDay = await tx.businessDay.update({
+        where: { id: day.id },
+        data: { saleCounter: { increment: 1 } },
+      });
+      const transactionId = `SL-${day.date.replace(/-/g, '')}-${String(updatedDay.saleCounter).padStart(4, '0')}`;
 
       const sale = await tx.sale.create({
         data: {
@@ -128,10 +139,10 @@ export class SalesService {
     if (filters.search) {
       conditions.push({
         OR: [
-          { transactionId: { contains: filters.search } },
-          { product: { name: { contains: filters.search } } },
-          { reseller: { fullName: { contains: filters.search } } },
-          { counterUser: { name: { contains: filters.search } } },
+          { transactionId: { contains: filters.search, mode: 'insensitive' } },
+          { product: { name: { contains: filters.search, mode: 'insensitive' } } },
+          { reseller: { fullName: { contains: filters.search, mode: 'insensitive' } } },
+          { counterUser: { name: { contains: filters.search, mode: 'insensitive' } } },
         ],
       });
     }

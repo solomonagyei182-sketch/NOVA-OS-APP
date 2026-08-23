@@ -74,21 +74,27 @@ export class InventoryService {
 
   async transferToShop(dto: TransferToShopDto, userId: string) {
     const updated = await this.prisma.$transaction(async (tx) => {
-      const product = await tx.product.findUniqueOrThrow({ where: { id: dto.productId } });
-
-      if (product.warehouseQty < dto.quantity) {
-        throw new BadRequestException(
-          `Not enough stock in the warehouse. Only ${product.warehouseQty} unit(s) available.`,
-        );
-      }
-
-      const updated = await tx.product.update({
-        where: { id: dto.productId },
+      // Condition the UPDATE itself on having enough stock, rather than reading
+      // then writing — under concurrent transfers of the same product, two
+      // reads could both pass a separate check before either commits, driving
+      // warehouseQty negative. This makes the check-and-decrement one atomic
+      // database operation instead.
+      const result = await tx.product.updateMany({
+        where: { id: dto.productId, warehouseQty: { gte: dto.quantity } },
         data: {
           warehouseQty: { decrement: dto.quantity },
           shopQty: { increment: dto.quantity },
         },
       });
+
+      if (result.count === 0) {
+        const product = await tx.product.findUniqueOrThrow({ where: { id: dto.productId } });
+        throw new BadRequestException(
+          `Not enough stock in the warehouse. Only ${product.warehouseQty} unit(s) available.`,
+        );
+      }
+
+      const updated = await tx.product.findUniqueOrThrow({ where: { id: dto.productId } });
 
       await tx.stockMovement.create({
         data: {

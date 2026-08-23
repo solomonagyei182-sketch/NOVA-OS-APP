@@ -8,11 +8,13 @@ import { SetupDto } from './dto/setup.dto';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import type { AuthenticatedUser } from './types';
+import { parseDuration } from '../sessions/sessions.service';
 
 @Controller('auth')
 export class AuthController {
   private readonly cookieName: string;
   private readonly isProduction: boolean;
+  private readonly cookieMaxAgeMs: number;
 
   constructor(
     private readonly authService: AuthService,
@@ -20,15 +22,27 @@ export class AuthController {
   ) {
     this.cookieName = this.configService.get<string>('COOKIE_NAME', 'nova_token');
     this.isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+    this.cookieMaxAgeMs = parseDuration(this.configService.get<string>('JWT_EXPIRES_IN', '12h'));
+  }
+
+  /**
+   * Frontend and backend are separate origins once deployed (e.g. a Vercel
+   * domain calling a Railway domain), which browsers treat as cross-site —
+   * that requires SameSite=None, which in turn requires Secure. Locally,
+   * localhost:5173 -> localhost:4000 is same-site despite the different
+   * ports, so Lax still works there without needing HTTPS.
+   */
+  private get cookieOptions() {
+    return {
+      httpOnly: true,
+      secure: this.isProduction,
+      sameSite: (this.isProduction ? 'none' : 'lax') as 'none' | 'lax',
+      maxAge: this.cookieMaxAgeMs,
+    };
   }
 
   private setSessionCookie(res: Response, token: string) {
-    res.cookie(this.cookieName, token, {
-      httpOnly: true,
-      secure: this.isProduction,
-      sameSite: 'lax',
-      maxAge: 12 * 60 * 60 * 1000,
-    });
+    res.cookie(this.cookieName, token, this.cookieOptions);
   }
 
   @Public()
@@ -67,7 +81,10 @@ export class AuthController {
   @HttpCode(200)
   async logout(@CurrentUser() user: AuthenticatedUser, @Res({ passthrough: true }) res: Response) {
     await this.authService.logout(user.id, user.sessionId);
-    res.clearCookie(this.cookieName);
+    // clearCookie must be called with the same attributes the cookie was set
+    // with (path/domain/secure/sameSite) or the browser won't match it and
+    // silently keeps the old cookie around.
+    res.clearCookie(this.cookieName, this.cookieOptions);
     return { success: true };
   }
 

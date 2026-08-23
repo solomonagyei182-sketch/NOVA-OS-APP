@@ -1,4 +1,8 @@
-const API_BASE = '/api';
+// In local dev this stays relative and rides Vite's dev-server proxy (vite.config.ts).
+// In production the frontend and backend are on separate domains, so VITE_BACKEND_URL
+// must be set at build time to the backend's origin (e.g. https://api.example.com).
+const backendUrl = import.meta.env.VITE_BACKEND_URL;
+const API_BASE = backendUrl ? `${backendUrl}/api` : '/api';
 
 export class ApiError extends Error {
   status: number;

@@ -12,7 +12,7 @@ export type LoginableRole = 'MANAGER' | 'COUNTER';
 export const ROLE_SESSION_LIMITS: Record<LoginableRole, number> = { MANAGER: 2, COUNTER: 3 };
 export const ROLE_LABELS: Record<LoginableRole, string> = { MANAGER: 'Manager', COUNTER: 'Counter' };
 
-function parseDuration(input: string): number {
+export function parseDuration(input: string): number {
   const match = /^(\d+)\s*(ms|s|m|h|d)?$/.exec(input.trim());
   if (!match) return 12 * 60 * 60 * 1000;
   const value = Number(match[1]);
@@ -43,26 +43,47 @@ export class SessionsService {
     });
   }
 
+  private runCreateSessionTransaction(params: { userId: string; role: LoginableRole; userAgent?: string }) {
+    return this.prisma.$transaction(
+      async (tx) => {
+        await this.reapStale(tx);
+        const activeCount = await tx.session.count({ where: { role: params.role, status: 'ACTIVE' } });
+        const limit = ROLE_SESSION_LIMITS[params.role];
+        if (activeCount >= limit) {
+          throw new ForbiddenException(
+            `All ${ROLE_LABELS[params.role]} access slots are currently occupied. Please try again later or contact an administrator.`,
+          );
+        }
+        const now = new Date();
+        return tx.session.create({
+          data: {
+            userId: params.userId,
+            role: params.role,
+            expiresAt: new Date(now.getTime() + this.ttlMs),
+            userAgent: params.userAgent,
+          },
+        });
+      },
+      // Under the default isolation level, two logins arriving at the same
+      // instant with exactly one slot left could both count the same
+      // pre-insert total and both pass the capacity check, breaching the cap
+      // by one. Serializable makes Postgres detect that conflict and abort
+      // one side with a retryable error instead of silently over-admitting.
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
   async createSession(params: { userId: string; role: LoginableRole; userAgent?: string }) {
-    const session = await this.prisma.$transaction(async (tx) => {
-      await this.reapStale(tx);
-      const activeCount = await tx.session.count({ where: { role: params.role, status: 'ACTIVE' } });
-      const limit = ROLE_SESSION_LIMITS[params.role];
-      if (activeCount >= limit) {
-        throw new ForbiddenException(
-          `All ${ROLE_LABELS[params.role]} access slots are currently occupied. Please try again later or contact an administrator.`,
-        );
+    let session;
+    try {
+      session = await this.runCreateSessionTransaction(params);
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2034') {
+        session = await this.runCreateSessionTransaction(params);
+      } else {
+        throw err;
       }
-      const now = new Date();
-      return tx.session.create({
-        data: {
-          userId: params.userId,
-          role: params.role,
-          expiresAt: new Date(now.getTime() + this.ttlMs),
-          userAgent: params.userAgent,
-        },
-      });
-    });
+    }
 
     this.realtime.emit('session:created', { userId: params.userId });
     return session;

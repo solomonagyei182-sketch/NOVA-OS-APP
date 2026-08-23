@@ -11,7 +11,7 @@ export class ProductsService {
   findAll(filters: { search?: string; status?: ProductStatus }) {
     const where: Prisma.ProductWhereInput = {};
     if (filters.status) where.status = filters.status;
-    if (filters.search) where.name = { contains: filters.search };
+    if (filters.search) where.name = { contains: filters.search, mode: 'insensitive' };
 
     return this.prisma.product.findMany({ where, orderBy: { name: 'asc' } });
   }

@@ -134,19 +134,15 @@ export class AuthService {
    * ever call it, and only once.
    */
   async setup(dto: SetupDto, userAgent?: string) {
-    const { needsSetup } = await this.getSetupStatus();
-    if (!needsSetup) {
-      throw new ForbiddenException('Setup has already been completed for this workspace.');
-    }
     if (dto.password !== dto.confirmPassword) {
       throw new BadRequestException('Passwords do not match.');
     }
 
-    const created = await this.usersService.create({
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const created = await this.usersService.createFirstManagerIfWorkspaceEmpty({
       name: dto.name,
       email: dto.email,
-      password: dto.password,
-      role: 'MANAGER',
+      passwordHash,
     });
 
     if (dto.businessName?.trim()) {

@@ -10,10 +10,16 @@ export class SettingsService {
     private readonly auditService: AuditService,
   ) {}
 
+  // Fixed id makes this a true singleton: two concurrent first-ever requests
+  // both racing findFirst()-then-create() could otherwise each insert their
+  // own row. upsert() on a fixed id is atomic — Postgres serializes it via
+  // the unique/primary-key constraint, so only one row can ever exist.
   private async getOrCreate() {
-    const existing = await this.prisma.businessSettings.findFirst();
-    if (existing) return existing;
-    return this.prisma.businessSettings.create({ data: {} });
+    return this.prisma.businessSettings.upsert({
+      where: { id: 'singleton' },
+      update: {},
+      create: { id: 'singleton' },
+    });
   }
 
   async get() {

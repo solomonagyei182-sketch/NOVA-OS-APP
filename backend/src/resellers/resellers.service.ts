@@ -27,9 +27,9 @@ export class ResellersService {
     if (filters.status) where.status = filters.status;
     if (filters.search) {
       where.OR = [
-        { fullName: { contains: filters.search } },
+        { fullName: { contains: filters.search, mode: 'insensitive' } },
         { phone: { contains: filters.search } },
-        { email: { contains: filters.search } },
+        { email: { contains: filters.search, mode: 'insensitive' } },
       ];
     }
 

@@ -1,5 +1,4 @@
-// NOVA OS — Prisma schema (SQLite; swap `provider` to "postgresql" and update
-// DATABASE_URL when moving to a hosted Postgres instance, everything else stays the same)
+// NOVA OS — Prisma schema (PostgreSQL)
 
 generator client {
   provider = "prisma-client-js"
@@ -8,7 +7,7 @@ generator client {
 // prisma 6.x — classic config, `url` read from DATABASE_URL via schema datasource
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -157,6 +156,7 @@ model BusinessDay {
   id           String    @id @default(cuid())
   date         String    @unique // YYYY-MM-DD
   status       DayStatus @default(OPEN)
+  saleCounter  Int       @default(0) // atomic per-day sequence for transaction IDs
   closedAt     DateTime?
   closedById   String?
   closedBy     User?     @relation("ClosedBy", fields: [closedById], references: [id])

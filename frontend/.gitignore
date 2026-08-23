@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
 
 # Original high-res logo exports — only the resized copies in src/assets are used in code
 src/assets/Nova logo.png

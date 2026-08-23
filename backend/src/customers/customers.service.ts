@@ -20,8 +20,8 @@ export class CustomersService {
     if (filters.search) {
       conditions.push({
         OR: [
-          { fullName: { contains: filters.search } },
-          { email: { contains: filters.search } },
+          { fullName: { contains: filters.search, mode: 'insensitive' } },
+          { email: { contains: filters.search, mode: 'insensitive' } },
           { phone: { contains: filters.search } },
         ],
       });
