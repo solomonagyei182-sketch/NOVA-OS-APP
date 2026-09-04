@@ -80,9 +80,8 @@ export function AdminSessionsPage() {
       <div>
         <h2 className="text-lg font-semibold text-fg">Active Sessions</h2>
         <p className="text-sm text-fg-muted">
-          Manager access is limited to {data.capacity.manager.max} concurrent session
-          {data.capacity.manager.max === 1 ? '' : 's'}. Counter has no limit — any number of Counter accounts can be
-          signed in at once, across any number of locations.
+          Manager and Counter accounts both have no concurrent-session limit — any number of Manager or Counter
+          accounts can be signed in at once, across any number of locations.
         </p>
       </div>
 

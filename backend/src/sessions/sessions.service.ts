@@ -9,10 +9,8 @@ import { AuditService } from '../audit/audit.service';
 // so the role here is always one of the two loginable roles — not the full Prisma Role enum.
 export type LoginableRole = 'MANAGER' | 'COUNTER';
 
-// `null` means unlimited. Counter has no cap — the business needs any number
-// of Counter accounts logged in concurrently across locations. Manager stays
-// capped; nothing in this task asked for that limit to change.
-export const ROLE_SESSION_LIMITS: Record<LoginableRole, number | null> = { MANAGER: 2, COUNTER: null };
+// `null` means unlimited. Neither role has a concurrent-session cap.
+export const ROLE_SESSION_LIMITS: Record<LoginableRole, number | null> = { MANAGER: null, COUNTER: null };
 export const ROLE_LABELS: Record<LoginableRole, string> = { MANAGER: 'Manager', COUNTER: 'Counter' };
 
 export function parseDuration(input: string): number {
