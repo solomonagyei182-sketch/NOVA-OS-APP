@@ -5,10 +5,18 @@ import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useActiveSessions, useDropSession } from './hooks';
-import type { ActiveSession } from '../../lib/types';
+import type { ActiveSession, SessionCapacity } from '../../lib/types';
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function formatCapacity({ active, max }: SessionCapacity) {
+  return max === null ? `${active} (unlimited)` : `${active} / ${max}`;
+}
+
+function isAtCapacity({ active, max }: SessionCapacity) {
+  return max !== null && active >= max;
 }
 
 function SessionGroup({
@@ -72,34 +80,33 @@ export function AdminSessionsPage() {
       <div>
         <h2 className="text-lg font-semibold text-fg">Active Sessions</h2>
         <p className="text-sm text-fg-muted">
-          Nova OS allows a maximum of {data.capacity.total.max} active sessions at a time — {data.capacity.manager.max}{' '}
-          Manager and {data.capacity.counter.max} Counter.
+          Manager access is limited to {data.capacity.manager.max} concurrent session
+          {data.capacity.manager.max === 1 ? '' : 's'}. Counter has no limit — any number of Counter accounts can be
+          signed in at once, across any number of locations.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard
           label="Manager"
-          value={`${data.capacity.manager.active} / ${data.capacity.manager.max}`}
+          value={formatCapacity(data.capacity.manager)}
           icon={Shield}
-          tone={data.capacity.manager.active >= data.capacity.manager.max ? 'danger' : 'brand'}
+          tone={isAtCapacity(data.capacity.manager) ? 'danger' : 'brand'}
         />
-        <StatCard
-          label="Counter"
-          value={`${data.capacity.counter.active} / ${data.capacity.counter.max}`}
-          icon={UsersIcon}
-          tone={data.capacity.counter.active >= data.capacity.counter.max ? 'danger' : 'brand'}
-        />
-        <StatCard
-          label="Total Active"
-          value={`${data.capacity.total.active} / ${data.capacity.total.max}`}
-          icon={Layers}
-          tone="success"
-        />
+        <StatCard label="Counter" value={formatCapacity(data.capacity.counter)} icon={UsersIcon} tone="brand" />
+        <StatCard label="Total Active" value={formatCapacity(data.capacity.total)} icon={Layers} tone="success" />
       </div>
 
-      <SessionGroup title={`Manager (${managers.length} / ${data.capacity.manager.max})`} sessions={managers} onDrop={setTarget} />
-      <SessionGroup title={`Counter (${counters.length} / ${data.capacity.counter.max})`} sessions={counters} onDrop={setTarget} />
+      <SessionGroup
+        title={`Manager (${formatCapacity({ active: managers.length, max: data.capacity.manager.max })})`}
+        sessions={managers}
+        onDrop={setTarget}
+      />
+      <SessionGroup
+        title={`Counter (${formatCapacity({ active: counters.length, max: data.capacity.counter.max })})`}
+        sessions={counters}
+        onDrop={setTarget}
+      />
 
       <ConfirmDialog
         open={Boolean(target)}

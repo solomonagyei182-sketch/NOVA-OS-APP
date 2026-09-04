@@ -176,7 +176,8 @@ export type ActiveSession = {
   lastActivityAt: string;
 };
 
-export type SessionCapacity = { active: number; max: number };
+/** `max: null` means unlimited (currently Counter, and therefore Total). */
+export type SessionCapacity = { active: number; max: number | null };
 
 export type ActiveSessionsResponse = {
   sessions: ActiveSession[];

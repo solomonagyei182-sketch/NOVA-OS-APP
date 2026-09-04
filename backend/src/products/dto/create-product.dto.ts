@@ -14,6 +14,16 @@ export class CreateProductDto {
   category?: string;
 
   @IsOptional()
+  @IsString()
+  companyId?: string;
+
+  /** A brand-new company name — find-or-created (case-insensitively) instead of using companyId. */
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  newCompanyName?: string;
+
+  @IsOptional()
   @IsNumber()
   @Min(0)
   costPrice?: number;

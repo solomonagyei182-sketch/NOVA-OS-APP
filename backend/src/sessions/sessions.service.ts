@@ -9,7 +9,10 @@ import { AuditService } from '../audit/audit.service';
 // so the role here is always one of the two loginable roles — not the full Prisma Role enum.
 export type LoginableRole = 'MANAGER' | 'COUNTER';
 
-export const ROLE_SESSION_LIMITS: Record<LoginableRole, number> = { MANAGER: 2, COUNTER: 3 };
+// `null` means unlimited. Counter has no cap — the business needs any number
+// of Counter accounts logged in concurrently across locations. Manager stays
+// capped; nothing in this task asked for that limit to change.
+export const ROLE_SESSION_LIMITS: Record<LoginableRole, number | null> = { MANAGER: 2, COUNTER: null };
 export const ROLE_LABELS: Record<LoginableRole, string> = { MANAGER: 'Manager', COUNTER: 'Counter' };
 
 export function parseDuration(input: string): number {
@@ -47,12 +50,14 @@ export class SessionsService {
     return this.prisma.$transaction(
       async (tx) => {
         await this.reapStale(tx);
-        const activeCount = await tx.session.count({ where: { role: params.role, status: 'ACTIVE' } });
         const limit = ROLE_SESSION_LIMITS[params.role];
-        if (activeCount >= limit) {
-          throw new ForbiddenException(
-            `All ${ROLE_LABELS[params.role]} access slots are currently occupied. Please try again later or contact an administrator.`,
-          );
+        if (limit !== null) {
+          const activeCount = await tx.session.count({ where: { role: params.role, status: 'ACTIVE' } });
+          if (activeCount >= limit) {
+            throw new ForbiddenException(
+              `All ${ROLE_LABELS[params.role]} access slots are currently occupied. Please try again later or contact an administrator.`,
+            );
+          }
         }
         const now = new Date();
         return tx.session.create({
@@ -125,6 +130,8 @@ export class SessionsService {
 
     const managerActive = sessions.filter((s) => s.role === 'MANAGER').length;
     const counterActive = sessions.filter((s) => s.role === 'COUNTER').length;
+    const managerLimit = ROLE_SESSION_LIMITS.MANAGER;
+    const counterLimit = ROLE_SESSION_LIMITS.COUNTER;
 
     return {
       sessions: sessions.map((s) => ({
@@ -137,11 +144,12 @@ export class SessionsService {
         lastActivityAt: s.lastActivityAt,
       })),
       capacity: {
-        manager: { active: managerActive, max: ROLE_SESSION_LIMITS.MANAGER },
-        counter: { active: counterActive, max: ROLE_SESSION_LIMITS.COUNTER },
+        manager: { active: managerActive, max: managerLimit },
+        counter: { active: counterActive, max: counterLimit },
         total: {
           active: managerActive + counterActive,
-          max: ROLE_SESSION_LIMITS.MANAGER + ROLE_SESSION_LIMITS.COUNTER,
+          // Unlimited Counter means there's no meaningful fixed total either.
+          max: managerLimit === null || counterLimit === null ? null : managerLimit + counterLimit,
         },
       },
     };

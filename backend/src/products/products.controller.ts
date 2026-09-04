@@ -18,8 +18,12 @@ export class ProductsController {
   ) {}
 
   @Get()
-  findAll(@Query('search') search?: string, @Query('status') status?: ProductStatus) {
-    return this.productsService.findAll({ search, status });
+  findAll(
+    @Query('search') search?: string,
+    @Query('status') status?: ProductStatus,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.productsService.findAll({ search, status, companyId });
   }
 
   @Roles('MANAGER')

@@ -13,7 +13,9 @@ export type RealtimeEvent =
   | 'day:closed'
   | 'day:reopened'
   | 'session:created'
-  | 'session:ended';
+  | 'session:ended'
+  | 'stock-transfer:dispatched'
+  | 'stock-transfer:accepted';
 
 @WebSocketGateway({
   cors: {

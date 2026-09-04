@@ -15,18 +15,27 @@ export class SalesController {
 
   @Get()
   list(
+    @CurrentUser() user: AuthenticatedUser,
     @Query('search') search?: string,
     @Query('productId') productId?: string,
     @Query('resellerId') resellerId?: string,
+    @Query('counterUserId') counterUserId?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Query('sortBy') sortBy?: SalesFilters['sortBy'],
     @Query('sortDir') sortDir?: SalesFilters['sortDir'],
   ) {
+    // A Counter can only ever see their own sales — their id is forced here
+    // server-side, ignoring whatever counterUserId they might pass, so this
+    // can't be bypassed by editing the request. Only a Manager may look up
+    // another account's transactions (used by Counter Management).
+    const scopedCounterUserId = user.role === 'MANAGER' ? counterUserId : user.id;
+
     return this.salesService.listSales({
       search,
       productId,
       resellerId,
+      counterUserId: scopedCounterUserId,
       dateFrom,
       dateTo,
       sortBy,

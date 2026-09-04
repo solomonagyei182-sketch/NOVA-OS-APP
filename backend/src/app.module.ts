@@ -17,6 +17,9 @@ import { ReportsModule } from './reports/reports.module';
 import { ResellersModule } from './resellers/resellers.module';
 import { SettingsModule } from './settings/settings.module';
 import { SessionsModule } from './sessions/sessions.module';
+import { CompaniesModule } from './companies/companies.module';
+import { StockTransfersModule } from './stock-transfers/stock-transfers.module';
+import { CountersModule } from './counters/counters.module';
 
 @Module({
   imports: [
@@ -36,6 +39,9 @@ import { SessionsModule } from './sessions/sessions.module';
     ResellersModule,
     SettingsModule,
     SessionsModule,
+    CompaniesModule,
+    StockTransfersModule,
+    CountersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

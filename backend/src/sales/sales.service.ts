@@ -11,6 +11,7 @@ export type SalesFilters = {
   search?: string;
   productId?: string;
   resellerId?: string;
+  counterUserId?: string;
   dateFrom?: string;
   dateTo?: string;
   sortBy?: 'createdAt' | 'price' | 'commission';
@@ -126,6 +127,7 @@ export class SalesService {
 
     if (filters.productId) conditions.push({ productId: filters.productId });
     if (filters.resellerId) conditions.push({ resellerId: filters.resellerId });
+    if (filters.counterUserId) conditions.push({ counterUserId: filters.counterUserId });
 
     if (filters.dateFrom || filters.dateTo) {
       conditions.push({
