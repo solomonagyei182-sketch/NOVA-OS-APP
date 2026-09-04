@@ -6,6 +6,7 @@ const adminNavItems = [
   { to: '/admin/products', label: 'Products' },
   { to: '/admin/resellers', label: 'Resellers' },
   { to: '/admin/staff', label: 'Staff / Users' },
+  { to: '/admin/counters', label: 'Counters' },
   { to: '/admin/sessions', label: 'Active Sessions' },
   { to: '/admin/activity', label: 'Activity Log' },
   { to: '/admin/settings', label: 'Settings' },

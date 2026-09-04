@@ -6,6 +6,8 @@ import type {
   AdminOverview,
   AuditLogEntry,
   BusinessSettings,
+  CounterOverview,
+  CounterProfile,
   Role,
   StaffUser,
 } from '../../lib/types';
@@ -74,6 +76,31 @@ export function useDropSession() {
       toast.success('Session ended.');
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not end session.'),
+  });
+}
+
+export function useCounters(filters: { search?: string; status?: 'ACTIVE' | 'INACTIVE' | 'ALL' }) {
+  const params = new URLSearchParams();
+  if (filters.search) params.set('search', filters.search);
+  if (filters.status && filters.status !== 'ALL') params.set('status', filters.status);
+  const qs = params.toString();
+
+  return useQuery({
+    queryKey: ['counters', filters],
+    queryFn: () => api.get<CounterOverview[]>(`/counters${qs ? `?${qs}` : ''}`),
+  });
+}
+
+export function useCounterProfile(counterId: string | undefined, filters: { dateFrom?: string; dateTo?: string }) {
+  const params = new URLSearchParams();
+  if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
+  if (filters.dateTo) params.set('dateTo', filters.dateTo);
+  const qs = params.toString();
+
+  return useQuery({
+    queryKey: ['counters', counterId, 'profile', filters],
+    queryFn: () => api.get<CounterProfile>(`/counters/${counterId}/profile${qs ? `?${qs}` : ''}`),
+    enabled: Boolean(counterId),
   });
 }
 

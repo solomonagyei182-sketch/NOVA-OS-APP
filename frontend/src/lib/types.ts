@@ -22,11 +22,25 @@ export type StaffUser = {
 
 export type ProductStatus = 'ACTIVE' | 'INACTIVE';
 
+export type CompanyStatus = 'ACTIVE' | 'INACTIVE';
+
+export type Company = {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  status: CompanyStatus;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { products: number };
+};
+
 export type Product = {
   id: string;
   name: string;
   sku: string | null;
   category: string | null;
+  companyId: string | null;
+  company: { id: string; name: string } | null;
   costPrice: number | null;
   sellingPrice: number | null;
   warehouseQty: number;
@@ -246,4 +260,74 @@ export type StockMovement = {
   createdAt: string;
   product: { name: string };
   performedBy: { name: string };
+};
+
+export type StockTransferStatus = 'PENDING' | 'ACCEPTED';
+
+export type StockAcceptance = {
+  id: string;
+  stockTransferId: string;
+  acceptedById: string;
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number | null;
+  address: string | null;
+  acceptedAt: string;
+};
+
+export type StockTransfer = {
+  id: string;
+  transferId: string;
+  productId: string;
+  quantity: number;
+  status: StockTransferStatus;
+  dispatchedById: string;
+  assignedToId: string;
+  createdAt: string;
+  product: { id: string; name: string; sku: string | null };
+  dispatchedBy: { id: string; name: string };
+  assignedTo: { id: string; name: string };
+  acceptance: StockAcceptance | null;
+};
+
+export type CounterLastLocation = {
+  latitude: number;
+  longitude: number;
+  address: string | null;
+  acceptedAt: string;
+};
+
+export type CounterOverview = {
+  id: string;
+  name: string;
+  email: string;
+  isActive: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  totalSales: number;
+  totalTransactions: number;
+  pendingStockCount: number;
+  acceptedStockCount: number;
+  lastKnownLocation: CounterLastLocation | null;
+};
+
+export type CounterProfile = {
+  counter: {
+    id: string;
+    name: string;
+    email: string;
+    isActive: boolean;
+    lastLoginAt: string | null;
+    createdAt: string;
+  };
+  summary: {
+    totalSales: number;
+    totalTransactions: number;
+    totalProductsSold: number;
+    pendingStockTransfers: number;
+    pendingStockQuantity: number;
+    acceptedStockTransfers: number;
+    acceptedStockQuantity: number;
+  };
+  lastKnownLocation: CounterLastLocation | null;
 };

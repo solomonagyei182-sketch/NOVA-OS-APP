@@ -3,9 +3,10 @@ import clsx from 'clsx';
 import { Plus, Search, Pencil } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
+import { Select } from '../../components/Select';
 import { DataTable, type Column } from '../../components/DataTable';
 import { useProducts } from '../../lib/queries';
-import { useUpdateProduct } from '../inventory/hooks';
+import { useActiveCompanies, useUpdateProduct } from '../inventory/hooks';
 import { ProductFormModal } from './ProductFormModal';
 import type { Product, ProductStatus } from '../../lib/types';
 
@@ -23,13 +24,19 @@ function formatMoney(n: number | null) {
 export function AdminProductsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProductStatus | 'ALL'>('ALL');
+  const [companyFilter, setCompanyFilter] = useState('ALL');
   const [formOpen, setFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
 
   const { data: products } = useProducts(search);
+  const { data: companies } = useActiveCompanies();
   const updateProduct = useUpdateProduct();
 
-  const filtered = (products ?? []).filter((p) => statusFilter === 'ALL' || p.status === statusFilter);
+  const filtered = (products ?? []).filter(
+    (p) =>
+      (statusFilter === 'ALL' || p.status === statusFilter) &&
+      (companyFilter === 'ALL' || p.companyId === companyFilter),
+  );
 
   function openAdd() {
     setEditingProduct(undefined);
@@ -50,6 +57,7 @@ export function AdminProductsPage() {
 
   const columns: Column<Product>[] = [
     { key: 'name', header: 'Product', render: (r) => <span className="font-medium text-fg">{r.name}</span> },
+    { key: 'company', header: 'Company', render: (r) => r.company?.name ?? '—' },
     { key: 'category', header: 'Category', render: (r) => r.category ?? '—' },
     { key: 'sellingPrice', header: 'Selling price', render: (r) => formatMoney(r.sellingPrice) },
     { key: 'shopQty', header: 'Shop stock', render: (r) => r.shopQty },
@@ -103,7 +111,7 @@ export function AdminProductsPage() {
           />
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {statusPills.map((p) => (
             <button
               key={p.value}
@@ -118,6 +126,19 @@ export function AdminProductsPage() {
               {p.label}
             </button>
           ))}
+          <Select
+            aria-label="Filter by company"
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="!w-auto"
+          >
+            <option value="ALL">All companies</option>
+            {companies?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
         </div>
       </div>
 

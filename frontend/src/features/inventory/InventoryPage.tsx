@@ -1,13 +1,21 @@
 import { useState } from 'react';
 import clsx from 'clsx';
-import { Plus, ArrowRightLeft } from 'lucide-react';
+import { Plus, ArrowRightLeft, Truck } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
 import { DataTable, type Column } from '../../components/DataTable';
-import { useMovements, useShopStock, useWarehouseStock } from './hooks';
+import { useAuth } from '../auth/AuthContext';
+import {
+  useMovements,
+  usePendingStockTransfers,
+  useShopStock,
+  useWarehouseStock,
+} from './hooks';
 import { AddWarehouseStockModal } from './AddWarehouseStockModal';
 import { TransferToShopModal } from './TransferToShopModal';
-import type { ShopStockItem, StockMovement, StockStatus, WarehouseStockItem } from '../../lib/types';
+import { DispatchStockModal } from './DispatchStockModal';
+import { AcceptStockModal } from './AcceptStockModal';
+import type { ShopStockItem, StockMovement, StockStatus, StockTransfer, WarehouseStockItem } from '../../lib/types';
 
 const statusTone: Record<StockStatus, 'success' | 'warning' | 'danger'> = {
   IN_STOCK: 'success',
@@ -28,16 +36,23 @@ function formatDateTime(iso: string) {
   });
 }
 
-type Tab = 'shop' | 'warehouse' | 'movements';
+type Tab = 'incoming' | 'shop' | 'warehouse' | 'movements';
 
 export function InventoryPage() {
+  const { user } = useAuth();
   const [tab, setTab] = useState<Tab>('shop');
   const [addStockOpen, setAddStockOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [dispatchOpen, setDispatchOpen] = useState(false);
+  const [accepting, setAccepting] = useState<StockTransfer | null>(null);
 
   const shopQuery = useShopStock();
   const warehouseQuery = useWarehouseStock();
   const movementsQuery = useMovements();
+  const pendingQuery = usePendingStockTransfers();
+
+  const isManager = user?.role === 'MANAGER';
+  const pendingCount = pendingQuery.data?.length ?? 0;
 
   const shopColumns: Column<ShopStockItem>[] = [
     { key: 'name', header: 'Product', render: (r) => <span className="font-medium text-fg">{r.name}</span> },
@@ -74,6 +89,23 @@ export function InventoryPage() {
     { key: 'createdAt', header: 'Date & time', render: (r) => formatDateTime(r.createdAt) },
   ];
 
+  const incomingColumns: Column<StockTransfer>[] = [
+    { key: 'transferId', header: 'Reference', render: (r) => <span className="font-mono text-xs">{r.transferId}</span> },
+    { key: 'product', header: 'Product', render: (r) => <span className="font-medium text-fg">{r.product.name}</span> },
+    { key: 'quantity', header: 'Quantity', render: (r) => r.quantity },
+    { key: 'dispatchedBy', header: 'Dispatched by', render: (r) => r.dispatchedBy.name },
+    { key: 'createdAt', header: 'Dispatched', render: (r) => formatDateTime(r.createdAt) },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (r) => (
+        <Button className="!px-3 !py-1.5 text-xs" onClick={() => setAccepting(r)}>
+          Accept stock
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -86,16 +118,23 @@ export function InventoryPage() {
             <Plus size={16} />
             Warehouse stock-in
           </Button>
-          <Button onClick={() => setTransferOpen(true)}>
+          <Button variant="secondary" onClick={() => setTransferOpen(true)}>
             <ArrowRightLeft size={16} />
             Transfer to shop
           </Button>
+          {isManager && (
+            <Button onClick={() => setDispatchOpen(true)}>
+              <Truck size={16} />
+              Dispatch to Counter
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="flex gap-1 rounded-lg border border-border bg-surface p-1 w-fit">
+      <div className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface p-1 w-fit">
         {(
           [
+            ['incoming', 'Incoming Stock'],
             ['shop', 'Stocks in Shop'],
             ['warehouse', 'Warehouse'],
             ['movements', 'Stock In History'],
@@ -105,15 +144,28 @@ export function InventoryPage() {
             key={value}
             onClick={() => setTab(value)}
             className={clsx(
-              'rounded-md px-3.5 py-2 text-sm font-medium transition-colors',
+              'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3.5 py-2 text-sm font-medium transition-colors',
               tab === value ? 'bg-brand-tint text-brand-tint-fg' : 'text-fg-muted hover:bg-surface-2',
             )}
           >
             {label}
+            {value === 'incoming' && pendingCount > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-warning-tint px-1 text-xs font-semibold text-warning-tint-fg">
+                {pendingCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
+      {tab === 'incoming' && (
+        <DataTable
+          columns={incomingColumns}
+          rows={pendingQuery.data ?? []}
+          keyField={(r) => r.id}
+          emptyMessage="No incoming stock awaiting acceptance."
+        />
+      )}
       {tab === 'shop' && (
         <DataTable
           columns={shopColumns}
@@ -141,6 +193,8 @@ export function InventoryPage() {
 
       <AddWarehouseStockModal open={addStockOpen} onClose={() => setAddStockOpen(false)} />
       <TransferToShopModal open={transferOpen} onClose={() => setTransferOpen(false)} />
+      {isManager && <DispatchStockModal open={dispatchOpen} onClose={() => setDispatchOpen(false)} />}
+      <AcceptStockModal transfer={accepting} onClose={() => setAccepting(null)} />
     </div>
   );
 }

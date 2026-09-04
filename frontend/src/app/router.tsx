@@ -29,6 +29,12 @@ const ResellerDetailPage = lazy(() =>
 const AdminStaffPage = lazy(() =>
   import('../features/admin/AdminStaffPage').then((m) => ({ default: m.AdminStaffPage })),
 );
+const AdminCountersPage = lazy(() =>
+  import('../features/admin/AdminCountersPage').then((m) => ({ default: m.AdminCountersPage })),
+);
+const CounterDetailPage = lazy(() =>
+  import('../features/admin/CounterDetailPage').then((m) => ({ default: m.CounterDetailPage })),
+);
 const AdminSessionsPage = lazy(() =>
   import('../features/admin/AdminSessionsPage').then((m) => ({ default: m.AdminSessionsPage })),
 );
@@ -142,6 +148,22 @@ export function AppRouter() {
                 element={
                   <LazyRoute>
                     <AdminStaffPage />
+                  </LazyRoute>
+                }
+              />
+              <Route
+                path="counters"
+                element={
+                  <LazyRoute>
+                    <AdminCountersPage />
+                  </LazyRoute>
+                }
+              />
+              <Route
+                path="counters/:id"
+                element={
+                  <LazyRoute>
+                    <CounterDetailPage />
                   </LazyRoute>
                 }
               />

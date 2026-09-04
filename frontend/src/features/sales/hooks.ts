@@ -7,6 +7,8 @@ export type SalesFilters = {
   search?: string;
   productId?: string;
   resellerId?: string;
+  /** Manager-only — a Counter's own requests always ignore this and see only their own sales (enforced server-side). */
+  counterUserId?: string;
   dateFrom?: string;
   dateTo?: string;
   sortBy?: 'createdAt' | 'price' | 'commission';
