@@ -14,8 +14,8 @@ export class SessionsController {
     return this.sessionsService.listActive();
   }
 
-  @Post(':id/drop')
-  dropSession(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.sessionsService.dropSession(id, user.id);
+  @Post(':userId/drop')
+  dropUserSessions(@Param('userId') userId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.sessionsService.dropUserSessions(userId, user.id);
   }
 }

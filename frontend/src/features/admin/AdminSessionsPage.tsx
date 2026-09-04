@@ -36,11 +36,12 @@ function SessionGroup({
       ) : (
         <div className="flex flex-col divide-y divide-border">
           {sessions.map((s) => (
-            <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div key={s.userId} className="flex flex-wrap items-center justify-between gap-3 py-3">
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium text-fg">{s.name}</div>
                 <div className="truncate text-xs text-fg-subtle">
                   {s.email} · Signed in {formatTime(s.createdAt)}
+                  {s.deviceCount > 1 ? ` · ${s.deviceCount} devices` : ''}
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -71,7 +72,7 @@ export function AdminSessionsPage() {
 
   async function confirmDrop() {
     if (!target) return;
-    await dropSession.mutateAsync(target.id);
+    await dropSession.mutateAsync(target.userId);
     setTarget(null);
   }
 
@@ -80,8 +81,9 @@ export function AdminSessionsPage() {
       <div>
         <h2 className="text-lg font-semibold text-fg">Active Sessions</h2>
         <p className="text-sm text-fg-muted">
-          Manager and Counter accounts both have no concurrent-session limit — any number of Manager or Counter
-          accounts can be signed in at once, across any number of locations.
+          Any number of Manager or Counter accounts can be signed in at once, across any number of locations. Signing
+          into the same account on multiple devices at once (phone and desktop, say) still counts as one active
+          session here.
         </p>
       </div>
 
@@ -112,7 +114,9 @@ export function AdminSessionsPage() {
         onClose={() => setTarget(null)}
         onConfirm={confirmDrop}
         title="Drop this session?"
-        message={`This will immediately sign ${target?.name ?? 'this user'} out of Nova OS.`}
+        message={`This will immediately sign ${target?.name ?? 'this user'} out of Nova OS${
+          target && target.deviceCount > 1 ? ` on all ${target.deviceCount} of their signed-in devices` : ''
+        }.`}
         confirmLabel="Drop Session"
         loading={dropSession.isPending}
         danger

@@ -180,12 +180,13 @@ export type AuditLogEntry = {
   createdAt: string;
 };
 
+/** One row per signed-in user; `deviceCount` folds in every device that user is logged in on. */
 export type ActiveSession = {
-  id: string;
   userId: string;
   name: string;
   email: string;
   role: Role;
+  deviceCount: number;
   createdAt: string;
   lastActivityAt: string;
 };
