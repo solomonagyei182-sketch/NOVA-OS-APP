@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { CompanyStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 
 @Injectable()
 export class CompaniesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtimeGateway: RealtimeGateway,
+  ) {}
 
   findAll(filters: { search?: string; status?: CompanyStatus }) {
     const where: Prisma.CompanyWhereInput = {};
@@ -28,14 +32,16 @@ export class CompaniesService {
     });
   }
 
-  create(dto: CreateCompanyDto) {
-    return this.prisma.company.create({
+  async create(dto: CreateCompanyDto) {
+    const created = await this.prisma.company.create({
       data: { name: dto.name.trim(), logoUrl: dto.logoUrl || null },
     });
+    this.realtimeGateway.emit('company:created', { companyId: created.id });
+    return created;
   }
 
-  update(id: string, dto: UpdateCompanyDto) {
-    return this.prisma.company.update({
+  async update(id: string, dto: UpdateCompanyDto) {
+    const updated = await this.prisma.company.update({
       where: { id },
       data: {
         name: dto.name?.trim(),
@@ -43,6 +49,8 @@ export class CompaniesService {
         status: dto.status,
       },
     });
+    this.realtimeGateway.emit('company:updated', { companyId: updated.id });
+    return updated;
   }
 
   /** Case-insensitive find-or-create — used when a product form supplies a brand-new company name. */
@@ -52,6 +60,8 @@ export class CompaniesService {
       where: { name: { equals: trimmed, mode: 'insensitive' } },
     });
     if (existing) return existing;
-    return this.prisma.company.create({ data: { name: trimmed } });
+    const created = await this.prisma.company.create({ data: { name: trimmed } });
+    this.realtimeGateway.emit('company:created', { companyId: created.id });
+    return created;
   }
 }

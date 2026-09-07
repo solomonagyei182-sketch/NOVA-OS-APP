@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { Menu } from 'lucide-react';
 import { SidebarContent } from './Sidebar';
 import { Header } from './Header';
+import { ConnectionStatus } from './ConnectionStatus';
 
 const COLLAPSE_KEY = 'nova-sidebar-collapsed';
 
@@ -82,6 +83,9 @@ export function Layout() {
               N
             </div>
             <span className="text-sm font-semibold text-fg">NOVA OS</span>
+          </div>
+          <div className="ml-auto">
+            <ConnectionStatus />
           </div>
         </header>
 

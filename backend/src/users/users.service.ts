@@ -2,6 +2,7 @@ import { ConflictException, ForbiddenException, Injectable } from '@nestjs/commo
 import bcrypt from 'bcryptjs';
 import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -17,7 +18,10 @@ const staffSelect = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtimeGateway: RealtimeGateway,
+  ) {}
 
   findByEmail(email: string) {
     return this.prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
@@ -50,10 +54,12 @@ export class UsersService {
       throw new ConflictException('A user with this email already exists.');
     }
     const passwordHash = await bcrypt.hash(dto.password, 10);
-    return this.prisma.user.create({
+    const created = await this.prisma.user.create({
       data: { name: dto.name.trim(), email, passwordHash, role: dto.role },
       select: staffSelect,
     });
+    this.realtimeGateway.emit('user:created', { userId: created.id });
+    return created;
   }
 
   async update(id: string, dto: UpdateUserDto) {
@@ -66,7 +72,9 @@ export class UsersService {
     if (dto.password) {
       data.passwordHash = await bcrypt.hash(dto.password, 10);
     }
-    return this.prisma.user.update({ where: { id }, data, select: staffSelect });
+    const updated = await this.prisma.user.update({ where: { id }, data, select: staffSelect });
+    this.realtimeGateway.emit('user:updated', { userId: updated.id });
+    return updated;
   }
 
   updateLastLogin(id: string) {

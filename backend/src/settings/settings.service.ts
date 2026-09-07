@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 
 @Injectable()
@@ -8,6 +9,7 @@ export class SettingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly realtimeGateway: RealtimeGateway,
   ) {}
 
   // Fixed id makes this a true singleton: two concurrent first-ever requests
@@ -41,6 +43,7 @@ export class SettingsService {
       details: dto as Record<string, unknown>,
     });
 
+    this.realtimeGateway.emit('settings:updated', {});
     return updated;
   }
 }

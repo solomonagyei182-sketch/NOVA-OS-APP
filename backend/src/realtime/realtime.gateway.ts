@@ -15,7 +15,12 @@ export type RealtimeEvent =
   | 'session:created'
   | 'session:ended'
   | 'stock-transfer:dispatched'
-  | 'stock-transfer:accepted';
+  | 'stock-transfer:accepted'
+  | 'user:created'
+  | 'user:updated'
+  | 'company:created'
+  | 'company:updated'
+  | 'settings:updated';
 
 @WebSocketGateway({
   cors: {

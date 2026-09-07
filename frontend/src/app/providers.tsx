@@ -27,9 +27,10 @@ export function AppProviders({ children }: { children: ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
-            <RealtimeSync />
-            {children}
-            <ThemedToaster />
+            <RealtimeSync>
+              {children}
+              <ThemedToaster />
+            </RealtimeSync>
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>

@@ -3,6 +3,7 @@ import { HeaderSearch } from './HeaderSearch';
 import { NotificationBell } from './NotificationBell';
 import { UserMenu } from './UserMenu';
 import { ThemeToggle } from '../features/theme/ThemeToggle';
+import { ConnectionStatus } from './ConnectionStatus';
 
 function greeting() {
   const hour = new Date().getHours();
@@ -32,7 +33,8 @@ export function Header() {
         <HeaderSearch />
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="flex shrink-0 items-center gap-2">
+        <ConnectionStatus />
         <ThemeToggle />
         <NotificationBell />
         <div className="mx-1 h-6 w-px bg-border" />
