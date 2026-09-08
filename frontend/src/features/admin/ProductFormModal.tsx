@@ -116,11 +116,11 @@ export function ProductFormModal({
           />
         )}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input label="SKU (optional)" error={errors.sku?.message} {...register('sku')} />
           <Input label="Category (optional)" error={errors.category?.message} {...register('category')} />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             label="Cost price (optional)"
             type="number"

@@ -119,3 +119,10 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* Hints that a horizontally-scrollable row (e.g. tab bars) has more content
+   off-screen, by fading its edges instead of cutting them off sharply. */
+.scroll-fade-x {
+  -webkit-mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+}

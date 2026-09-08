@@ -20,7 +20,7 @@ export function AdminLayout() {
         <p className="text-sm text-fg-muted">Manage products, resellers, staff, and system configuration.</p>
       </div>
 
-      <div className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface p-1">
+      <div className="scroll-fade-x flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface p-1">
         {adminNavItems.map((item) => (
           <NavLink
             key={item.to}
