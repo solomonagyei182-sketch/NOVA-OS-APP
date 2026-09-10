@@ -21,4 +21,12 @@ export class CalculationsController {
     }
     return this.calculationsService.forProductInRange(productId, dateFrom, dateTo);
   }
+
+  @Get('range')
+  allProductsInRange(@Query('dateFrom') dateFrom: string, @Query('dateTo') dateTo: string) {
+    if (!dateFrom || !dateTo) {
+      throw new BadRequestException('dateFrom and dateTo are required.');
+    }
+    return this.calculationsService.allProductsInRange(dateFrom, dateTo);
+  }
 }

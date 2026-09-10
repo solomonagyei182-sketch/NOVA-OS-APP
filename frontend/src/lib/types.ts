@@ -41,9 +41,11 @@ export type Product = {
   category: string | null;
   companyId: string | null;
   company: { id: string; name: string } | null;
-  costPrice: number | null;
+  /** Manager-only — omitted entirely from a Counter's product responses. */
+  costPrice?: number | null;
   sellingPrice: number | null;
-  warehouseQty: number;
+  /** Manager-only — omitted entirely from a Counter's product responses. */
+  warehouseQty?: number;
   shopQty: number;
   lowStockThreshold: number;
   status: ProductStatus;
@@ -226,6 +228,17 @@ export type DailyCalculations = {
   date: string;
   products: { productId: string; productName: string; numberSold: number; totalAmount: number }[];
   totalSalesToday: number;
+  transactionCount: number;
+  totalCommission: number;
+};
+
+export type RangeCalculations = {
+  dateFrom: string;
+  dateTo: string;
+  products: { productId: string; productName: string; numberSold: number; totalAmount: number }[];
+  totalSales: number;
+  transactionCount: number;
+  totalCommission: number;
 };
 
 export type ProductRangeCalculations = {
@@ -289,6 +302,26 @@ export type StockTransfer = {
   dispatchedBy: { id: string; name: string };
   assignedTo: { id: string; name: string };
   acceptance: StockAcceptance | null;
+};
+
+export type StockRequestStatus = 'PENDING' | 'FULFILLED' | 'CANCELLED';
+
+export type StockRequest = {
+  id: string;
+  requestId: string;
+  productId: string;
+  quantity: number;
+  note: string | null;
+  status: StockRequestStatus;
+  requestedById: string;
+  createdAt: string;
+  fulfilledById: string | null;
+  fulfilledAt: string | null;
+  fulfilledTransferId: string | null;
+  product: { id: string; name: string; sku: string | null };
+  requestedBy: { id: string; name: string };
+  fulfilledBy: { id: string; name: string } | null;
+  fulfilledTransfer: { id: string; transferId: string; status: StockTransferStatus } | null;
 };
 
 export type CounterLastLocation = {

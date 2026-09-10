@@ -1,7 +1,6 @@
 import { DayStatusCard } from './DayStatusCard';
-import { DailyCalculationsCard } from './DailyCalculationsCard';
-import { WeeklyCalculationsCard } from './WeeklyCalculationsCard';
-import { MonthlyCalculationsCard } from './MonthlyCalculationsCard';
+import { CalculationsCard } from './CalculationsCard';
+import { ProductLookupCard } from './ProductLookupCard';
 
 export function CalculationsPage() {
   return (
@@ -11,9 +10,8 @@ export function CalculationsPage() {
         <p className="text-sm text-fg-muted">Daily, weekly, and monthly product performance.</p>
       </div>
       <DayStatusCard />
-      <DailyCalculationsCard />
-      <WeeklyCalculationsCard />
-      <MonthlyCalculationsCard />
+      <CalculationsCard />
+      <ProductLookupCard />
     </div>
   );
 }

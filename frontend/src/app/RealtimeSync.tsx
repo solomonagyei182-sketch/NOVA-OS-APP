@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useAuth } from '../features/auth/AuthContext';
 import { getSocket } from '../lib/socket';
 import { ConnectionStatusContext } from './ConnectionStatusContext';
@@ -26,6 +27,9 @@ const EVENT_TO_QUERY_KEYS: Record<string, string[][]> = {
   'session:created': [['sessions']],
   'stock-transfer:dispatched': [['stock-transfers'], ['inventory'], ['counters'], ['reports']],
   'stock-transfer:accepted': [['stock-transfers'], ['inventory'], ['counters'], ['reports']],
+  'stock-request:created': [['stock-requests']],
+  'stock-request:fulfilled': [['stock-requests'], ['stock-transfers'], ['inventory'], ['reports']],
+  'stock-request:cancelled': [['stock-requests']],
   'user:created': [['staff'], ['counters']],
   'user:updated': [['staff'], ['counters']],
   'settings:updated': [['settings']],
@@ -61,6 +65,28 @@ export function RealtimeSync({ children }: { children: ReactNode }) {
     }
     socket.on('session:ended', handleSessionEnded);
 
+    // Targeted, per-user notifications layered on top of the generic cache
+    // invalidation above — only the person the event actually concerns sees
+    // a toast, instead of broadcasting it to everyone who happens to be online.
+    function handleStockDispatched(payload: { transferId?: string; assignedToId?: string }) {
+      if (payload.assignedToId === user?.id) {
+        toast.info('New stock has been dispatched to you — check Receiving in Inventory.');
+      }
+    }
+    function handleRequestFulfilled(payload: { requestId?: string; requestedById?: string }) {
+      if (payload.requestedById === user?.id) {
+        toast.success('Your stock request was approved and dispatched — check Receiving.');
+      }
+    }
+    function handleRequestCreated() {
+      if (user?.role === 'MANAGER') {
+        toast.info('New stock request received from a Counter.');
+      }
+    }
+    socket.on('stock-transfer:dispatched', handleStockDispatched);
+    socket.on('stock-request:fulfilled', handleRequestFulfilled);
+    socket.on('stock-request:created', handleRequestCreated);
+
     // A dropped connection means every event that fired while it was down
     // was missed. Resync everything currently on screen the moment the
     // socket comes back — not just whatever the reconnect happens to catch
@@ -82,6 +108,9 @@ export function RealtimeSync({ children }: { children: ReactNode }) {
     return () => {
       unsubscribers.forEach((unsub) => unsub());
       socket.off('session:ended', handleSessionEnded);
+      socket.off('stock-transfer:dispatched', handleStockDispatched);
+      socket.off('stock-request:fulfilled', handleRequestFulfilled);
+      socket.off('stock-request:created', handleRequestCreated);
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       socket.disconnect();

@@ -6,6 +6,8 @@ import type {
   Product,
   ShopStockItem,
   StockMovement,
+  StockRequest,
+  StockRequestStatus,
   StockTransfer,
   WarehouseStockItem,
 } from '../../lib/types';
@@ -168,5 +170,76 @@ export function useAllStockTransfers(filters: {
   return useQuery({
     queryKey: ['stock-transfers', 'all', filters],
     queryFn: () => api.get<StockTransfer[]>(`/stock-transfers${qs ? `?${qs}` : ''}`),
+  });
+}
+
+function invalidateStockRequests(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ['stock-requests'] });
+}
+
+/** A Counter's own stock requests, any status. */
+export function useMyStockRequests() {
+  return useQuery({
+    queryKey: ['stock-requests', 'mine'],
+    queryFn: () => api.get<StockRequest[]>('/stock-requests/mine'),
+  });
+}
+
+/** Manager's queue of requests awaiting a decision. */
+export function usePendingStockRequests() {
+  return useQuery({
+    queryKey: ['stock-requests', 'pending'],
+    queryFn: () => api.get<StockRequest[]>('/stock-requests/pending'),
+  });
+}
+
+export function useAllStockRequests(filters: { status?: StockRequestStatus; requestedById?: string }) {
+  const params = new URLSearchParams();
+  if (filters.status) params.set('status', filters.status);
+  if (filters.requestedById) params.set('requestedById', filters.requestedById);
+  const qs = params.toString();
+
+  return useQuery({
+    queryKey: ['stock-requests', 'all', filters],
+    queryFn: () => api.get<StockRequest[]>(`/stock-requests${qs ? `?${qs}` : ''}`),
+  });
+}
+
+export function useCreateStockRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { productId: string; quantity: number; note?: string }) =>
+      api.post<StockRequest>('/stock-requests', data),
+    onSuccess: () => {
+      invalidateStockRequests(queryClient);
+      toast.success('Stock request sent.');
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not send stock request.'),
+  });
+}
+
+export function useFulfillStockRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, quantity }: { id: string; quantity?: number }) =>
+      api.post<StockRequest>(`/stock-requests/${id}/fulfill`, { quantity }),
+    onSuccess: () => {
+      invalidateStockRequests(queryClient);
+      invalidateStockTransfers(queryClient);
+      toast.success('Stock request fulfilled — dispatched to the Counter.');
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not fulfill stock request.'),
+  });
+}
+
+export function useCancelStockRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<StockRequest>(`/stock-requests/${id}/cancel`),
+    onSuccess: () => {
+      invalidateStockRequests(queryClient);
+      toast.success('Stock request cancelled.');
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not cancel stock request.'),
   });
 }

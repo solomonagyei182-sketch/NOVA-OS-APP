@@ -1,12 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, ApiError } from '../../lib/api';
-import type { BusinessDay, DailyCalculations, ProductRangeCalculations } from '../../lib/types';
+import type { BusinessDay, DailyCalculations, ProductRangeCalculations, RangeCalculations } from '../../lib/types';
 
 export function useDailyCalculations() {
   return useQuery({
     queryKey: ['calculations', 'daily'],
     queryFn: () => api.get<DailyCalculations>('/calculations/daily'),
+  });
+}
+
+/** All-products summary for an arbitrary range — powers the Week/Month tabs. */
+export function useCalculationsSummary(dateFrom: string, dateTo: string) {
+  return useQuery({
+    queryKey: ['calculations', 'summary', dateFrom, dateTo],
+    queryFn: () => api.get<RangeCalculations>(`/calculations/range?dateFrom=${dateFrom}&dateTo=${dateTo}`),
   });
 }
 

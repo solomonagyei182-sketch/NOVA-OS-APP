@@ -67,16 +67,18 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  counterSales   Sale[]          @relation("CounterSales")
-  stockMovements StockMovement[]
-  auditLogs      AuditLog[]
-  closedDays     BusinessDay[]   @relation("ClosedBy")
-  reopenedDays   BusinessDay[]   @relation("ReopenedBy")
-  sessions       Session[]       @relation("UserSessions")
-  endedSessions  Session[]       @relation("SessionEndedBy")
-  stockTransfersDispatched StockTransfer[]  @relation("StockTransfersDispatched")
-  stockTransfersAssigned  StockTransfer[]  @relation("StockTransfersAssigned")
-  stockAcceptances        StockAcceptance[] @relation("StockAcceptances")
+  counterSales             Sale[]            @relation("CounterSales")
+  stockMovements           StockMovement[]
+  auditLogs                AuditLog[]
+  closedDays               BusinessDay[]     @relation("ClosedBy")
+  reopenedDays             BusinessDay[]     @relation("ReopenedBy")
+  sessions                 Session[]         @relation("UserSessions")
+  endedSessions            Session[]         @relation("SessionEndedBy")
+  stockTransfersDispatched StockTransfer[]   @relation("StockTransfersDispatched")
+  stockTransfersAssigned   StockTransfer[]   @relation("StockTransfersAssigned")
+  stockAcceptances         StockAcceptance[] @relation("StockAcceptances")
+  stockRequestsMade        StockRequest[]    @relation("StockRequestsMade")
+  stockRequestsFulfilled   StockRequest[]    @relation("StockRequestsFulfilled")
 }
 
 model Session {
@@ -118,6 +120,7 @@ model Product {
   sales          Sale[]
   stockMovements StockMovement[]
   stockTransfers StockTransfer[]
+  stockRequests  StockRequest[]
 
   @@index([companyId])
 }
@@ -151,19 +154,20 @@ enum StockTransferStatus {
 // shop quantity is only incremented once the Counter formally accepts it —
 // the gap between the two is the "in transit / pending acceptance" state.
 model StockTransfer {
-  id             String               @id @default(cuid())
-  transferId     String               @unique // human-readable reference, e.g. ST-20260904-0001
+  id             String              @id @default(cuid())
+  transferId     String              @unique // human-readable reference, e.g. ST-20260904-0001
   productId      String
-  product        Product              @relation(fields: [productId], references: [id])
+  product        Product             @relation(fields: [productId], references: [id])
   quantity       Int
-  status         StockTransferStatus  @default(PENDING)
+  status         StockTransferStatus @default(PENDING)
   dispatchedById String
-  dispatchedBy   User                 @relation("StockTransfersDispatched", fields: [dispatchedById], references: [id])
+  dispatchedBy   User                @relation("StockTransfersDispatched", fields: [dispatchedById], references: [id])
   assignedToId   String
-  assignedTo     User                 @relation("StockTransfersAssigned", fields: [assignedToId], references: [id])
-  createdAt      DateTime             @default(now())
+  assignedTo     User                @relation("StockTransfersAssigned", fields: [assignedToId], references: [id])
+  createdAt      DateTime            @default(now())
 
-  acceptance StockAcceptance?
+  acceptance       StockAcceptance?
+  fulfilledRequest StockRequest?
 
   @@index([assignedToId, status])
   @@index([status])
@@ -188,6 +192,39 @@ model StockAcceptance {
   @@index([acceptedById])
 }
 
+enum StockRequestStatus {
+  PENDING
+  FULFILLED
+  CANCELLED
+}
+
+// A Counter asking the warehouse for more stock of a product — the "REQUEST"
+// step in REQUEST → RECEIVE → SELL. Fulfilling a request just dispatches a
+// StockTransfer against it (the existing dispatch/accept flow is unchanged);
+// this model only tracks the ask itself so Manager has a queue to work from
+// and the Counter can see the status of what they asked for.
+model StockRequest {
+  id            String             @id @default(cuid())
+  requestId     String             @unique // human-readable reference, e.g. SR-20260910-0001
+  productId     String
+  product       Product            @relation(fields: [productId], references: [id])
+  quantity      Int
+  note          String?
+  status        StockRequestStatus @default(PENDING)
+  requestedById String
+  requestedBy   User               @relation("StockRequestsMade", fields: [requestedById], references: [id])
+  createdAt     DateTime           @default(now())
+
+  fulfilledById       String?
+  fulfilledBy         User?          @relation("StockRequestsFulfilled", fields: [fulfilledById], references: [id])
+  fulfilledAt         DateTime?
+  fulfilledTransferId String?        @unique
+  fulfilledTransfer   StockTransfer? @relation(fields: [fulfilledTransferId], references: [id])
+
+  @@index([requestedById, status])
+  @@index([status])
+}
+
 model Reseller {
   id        String         @id @default(cuid())
   fullName  String
@@ -206,21 +243,21 @@ model Reseller {
 }
 
 model BusinessSettings {
-  id                       String @id @default(cuid())
+  id                       String  @id @default(cuid())
   businessName             String?
-  currencySymbol           String @default("₦")
-  defaultLowStockThreshold Int    @default(10)
+  currencySymbol           String  @default("₦")
+  defaultLowStockThreshold Int     @default(10)
 }
 
 model StockMovement {
-  id        String            @id @default(cuid())
-  productId String
-  product   Product           @relation(fields: [productId], references: [id])
-  type      StockMovementType
-  quantity  Int
+  id            String            @id @default(cuid())
+  productId     String
+  product       Product           @relation(fields: [productId], references: [id])
+  type          StockMovementType
+  quantity      Int
   performedById String
-  performedBy   User          @relation(fields: [performedById], references: [id])
-  createdAt DateTime          @default(now())
+  performedBy   User              @relation(fields: [performedById], references: [id])
+  createdAt     DateTime          @default(now())
 
   @@index([productId])
   @@index([createdAt])
@@ -244,21 +281,21 @@ model BusinessDay {
 }
 
 model Sale {
-  id            String   @id @default(cuid())
-  transactionId String   @unique
+  id            String      @id @default(cuid())
+  transactionId String      @unique
   productId     String
-  product       Product  @relation(fields: [productId], references: [id])
+  product       Product     @relation(fields: [productId], references: [id])
   resellerId    String?
-  reseller      Reseller? @relation(fields: [resellerId], references: [id])
+  reseller      Reseller?   @relation(fields: [resellerId], references: [id])
   counterUserId String
-  counterUser   User      @relation("CounterSales", fields: [counterUserId], references: [id])
-  quantity      Int      @default(1)
+  counterUser   User        @relation("CounterSales", fields: [counterUserId], references: [id])
+  quantity      Int         @default(1)
   unitPrice     Float?
   price         Float
   commission    Float
   dayId         String
   day           BusinessDay @relation(fields: [dayId], references: [id])
-  createdAt     DateTime @default(now())
+  createdAt     DateTime    @default(now())
 
   @@index([productId])
   @@index([resellerId])

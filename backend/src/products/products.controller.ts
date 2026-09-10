@@ -18,12 +18,20 @@ export class ProductsController {
   ) {}
 
   @Get()
-  findAll(
+  async findAll(
     @Query('search') search?: string,
     @Query('status') status?: ProductStatus,
     @Query('companyId') companyId?: string,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
-    return this.productsService.findAll({ search, status, companyId });
+    const products = await this.productsService.findAll({ search, status, companyId });
+    // Warehouse quantity and cost price are Manager-only information — a
+    // Counter must never receive them, even incidentally through a shared
+    // product list endpoint used elsewhere for Sales/shop views.
+    if (user?.role === 'COUNTER') {
+      return products.map(({ warehouseQty: _warehouseQty, costPrice: _costPrice, ...rest }) => rest);
+    }
+    return products;
   }
 
   @Roles('MANAGER')

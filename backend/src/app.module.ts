@@ -19,6 +19,7 @@ import { SettingsModule } from './settings/settings.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { CompaniesModule } from './companies/companies.module';
 import { StockTransfersModule } from './stock-transfers/stock-transfers.module';
+import { StockRequestsModule } from './stock-requests/stock-requests.module';
 import { CountersModule } from './counters/counters.module';
 
 @Module({
@@ -41,6 +42,7 @@ import { CountersModule } from './counters/counters.module';
     SessionsModule,
     CompaniesModule,
     StockTransfersModule,
+    StockRequestsModule,
     CountersModule,
   ],
   controllers: [AppController],

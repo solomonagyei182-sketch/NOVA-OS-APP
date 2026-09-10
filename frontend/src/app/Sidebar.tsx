@@ -30,7 +30,7 @@ export function SidebarContent({
         )}
       </div>
 
-      <nav className={clsx('flex-1 space-y-1', collapsed ? 'px-2' : 'px-3')}>
+      <nav className={clsx('flex-1 space-y-1 overflow-y-auto', collapsed ? 'px-2' : 'px-3')}>
         {navItems
           .filter((item) => !user || item.roles.includes(user.role))
           .map((item) => (

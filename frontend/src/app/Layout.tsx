@@ -55,7 +55,7 @@ export function Layout() {
   }, [collapsed]);
 
   return (
-    <div className="flex min-h-screen bg-canvas">
+    <div className="flex h-dvh overflow-hidden bg-canvas">
       <aside
         className={clsx(
           'hidden shrink-0 border-r border-border bg-surface transition-[width] duration-200 lg:block',
