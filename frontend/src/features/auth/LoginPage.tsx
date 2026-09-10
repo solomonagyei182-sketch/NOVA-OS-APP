@@ -235,7 +235,7 @@ export function LoginPage() {
   const bannerTone = sessionMessage ? 'danger' : 'success';
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-canvas px-4">
+    <div className="relative flex min-h-screen items-start justify-center overflow-y-auto bg-canvas px-4 py-16 sm:items-center sm:py-4">
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
