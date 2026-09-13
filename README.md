@@ -34,3 +34,4 @@ See `backend/.env.example`. Copy to `backend/.env` and set a real `JWT_SECRET` b
 The backend is a standard Node/NestJS app (see `backend/Dockerfile`) that serves the SQLite database from a file — mount a persistent volume at `backend/prisma/dev.db`'s directory so data survives redeploys. Point `DATABASE_URL` and `FRONTEND_URL` at your production values. To move to PostgreSQL later, change the `datasource.provider` in `backend/prisma/schema.prisma` and the `DATABASE_URL` — the rest of the app is unaffected.
 
 The frontend builds to static files (`npm run build` in `frontend/`) that can be served from any static host, with `/api` and `/socket.io` proxied or CORS-configured to point at the deployed backend.
+
