@@ -1,0 +1,51 @@
+name: Database Backup
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # daily at 03:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set backup filename
+        run: echo "BACKUP_FILE=nova-os-backup-$(date +%Y-%m-%d).dump" >> "$GITHUB_ENV"
+
+      - name: Dump database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          docker run --rm -e DATABASE_URL -v "$PWD":/backup postgres:18 \
+            pg_dump "$DATABASE_URL" --format=custom --file="/backup/$BACKUP_FILE"
+
+      # Fails loudly instead of silently uploading a broken or empty backup —
+      # pg_restore --list parses the dump's table of contents without needing
+      # a live database, so it proves the file is actually a valid, readable dump.
+      - name: Verify the dump is valid and non-trivial
+        run: |
+          SIZE=$(stat -c%s "$BACKUP_FILE")
+          echo "Backup size: $SIZE bytes"
+          if [ "$SIZE" -lt 2048 ]; then
+            echo "::error::Backup file is suspiciously small ($SIZE bytes) — failing."
+            exit 1
+          fi
+          docker run --rm -v "$PWD":/backup postgres:18 pg_restore --list "/backup/$BACKUP_FILE" > /dev/null
+
+      # This repo is public, so any uploaded artifact is publicly downloadable —
+      # the dump is encrypted before upload and the plaintext is never stored.
+      - name: Encrypt backup
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          gpg --batch --yes --symmetric --cipher-algo AES256 \
+            --passphrase "$BACKUP_PASSPHRASE" -o "$BACKUP_FILE.gpg" "$BACKUP_FILE"
+          rm "$BACKUP_FILE"
+          echo "ENCRYPTED_FILE=$BACKUP_FILE.gpg" >> "$GITHUB_ENV"
+
+      - name: Upload encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ENCRYPTED_FILE }}
+          path: ${{ env.ENCRYPTED_FILE }}
+          retention-days: 30
