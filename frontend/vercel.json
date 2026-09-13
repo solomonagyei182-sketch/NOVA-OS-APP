@@ -1,3 +1,7 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://nova-os-backend-production-9d68.up.railway.app/api/:path*" },
+    { "source": "/socket.io/:path*", "destination": "https://nova-os-backend-production-9d68.up.railway.app/socket.io/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
