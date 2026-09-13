@@ -56,7 +56,7 @@ export function RecentActivity() {
   const isManager = user?.role === 'MANAGER';
 
   const sales = useSales({ sortBy: 'createdAt', sortDir: 'desc' });
-  const movements = useMovements();
+  const movements = useMovements(undefined, { enabled: isManager });
   const customers = useCustomers({ tier: 'ALL', enabled: isManager });
 
   const recentSales = sales.data?.slice(0, 3) ?? [];
@@ -65,7 +65,7 @@ export function RecentActivity() {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 3);
 
-  const loading = sales.isLoading || movements.isLoading;
+  const loading = sales.isLoading || (isManager && movements.isLoading);
 
   return (
     <div className="flex flex-col gap-5 rounded-2xl border border-border bg-surface p-5">
@@ -87,21 +87,23 @@ export function RecentActivity() {
         )}
       </ActivitySection>
 
-      <ActivitySection title="Recent inventory movements" loading={loading}>
-        {recentMovements.length === 0 ? (
-          <EmptyState message="No stock movements yet." />
-        ) : (
-          recentMovements.map((m) => (
-            <ActivityRow
-              key={m.id}
-              icon={Package}
-              title={`${m.product.name} × ${m.quantity}`}
-              subtitle={m.type === 'WAREHOUSE_IN' ? 'Warehouse stock-in' : 'Transferred to shop'}
-              time={timeAgo(m.createdAt)}
-            />
-          ))
-        )}
-      </ActivitySection>
+      {isManager && (
+        <ActivitySection title="Recent inventory movements" loading={movements.isLoading}>
+          {recentMovements.length === 0 ? (
+            <EmptyState message="No stock movements yet." />
+          ) : (
+            recentMovements.map((m) => (
+              <ActivityRow
+                key={m.id}
+                icon={Package}
+                title={`${m.product.name} × ${m.quantity}`}
+                subtitle={m.type === 'WAREHOUSE_IN' ? 'Warehouse stock-in' : 'Transferred to shop'}
+                time={timeAgo(m.createdAt)}
+              />
+            ))
+          )}
+        </ActivitySection>
+      )}
 
       {isManager && (
         <ActivitySection title="Recent customers" loading={customers.isLoading}>

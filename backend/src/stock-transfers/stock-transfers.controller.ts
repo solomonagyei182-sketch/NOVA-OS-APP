@@ -2,7 +2,6 @@ import { Body, Controller, ForbiddenException, Get, Param, Post, Query } from '@
 import { StockTransferStatus } from '@prisma/client';
 import { StockTransfersService } from './stock-transfers.service';
 import { DispatchStockDto } from './dto/dispatch-stock.dto';
-import { AcceptStockDto } from './dto/accept-stock.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/types';
@@ -24,8 +23,8 @@ export class StockTransfersController {
   }
 
   @Post(':id/accept')
-  accept(@Param('id') id: string, @Body() dto: AcceptStockDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.stockTransfersService.accept(id, dto, user.id);
+  accept(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.stockTransfersService.accept(id, user.id);
   }
 
   @Roles('MANAGER')

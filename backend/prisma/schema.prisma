@@ -175,18 +175,13 @@ model StockTransfer {
 }
 
 // Immutable once created — never exposed via an update endpoint, so an
-// acceptance record can't be edited after the fact. Lat/lng are the source
-// of truth; address is a best-effort reverse-geocode for readability only.
+// acceptance record can't be edited after the fact.
 model StockAcceptance {
   id              String        @id @default(cuid())
   stockTransferId String        @unique
   stockTransfer   StockTransfer @relation(fields: [stockTransferId], references: [id])
   acceptedById    String
   acceptedBy      User          @relation("StockAcceptances", fields: [acceptedById], references: [id])
-  latitude        Float
-  longitude       Float
-  accuracyMeters  Float?
-  address         String?
   acceptedAt      DateTime      @default(now())
 
   @@index([acceptedById])

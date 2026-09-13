@@ -5,7 +5,6 @@ import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { dateToDayString } from '../business-day/date.util';
 import { DispatchStockDto } from './dto/dispatch-stock.dto';
-import { AcceptStockDto } from './dto/accept-stock.dto';
 
 const transferInclude = {
   product: { select: { id: true, name: true, sku: true } },
@@ -83,7 +82,7 @@ export class StockTransfersService {
     return transfer;
   }
 
-  async accept(id: string, dto: AcceptStockDto, counterId: string) {
+  async accept(id: string, counterId: string) {
     const existing = await this.prisma.stockTransfer.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Stock transfer not found.');
     if (existing.assignedToId !== counterId) {
@@ -104,10 +103,6 @@ export class StockTransfersService {
         data: {
           stockTransferId: id,
           acceptedById: counterId,
-          latitude: dto.latitude,
-          longitude: dto.longitude,
-          accuracyMeters: dto.accuracyMeters,
-          address: dto.address,
         },
       });
 
@@ -136,8 +131,6 @@ export class StockTransfersService {
       details: {
         transferId: existing.transferId,
         quantity: existing.quantity,
-        latitude: dto.latitude,
-        longitude: dto.longitude,
       },
     });
 

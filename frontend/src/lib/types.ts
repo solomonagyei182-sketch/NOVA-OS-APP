@@ -282,10 +282,6 @@ export type StockAcceptance = {
   id: string;
   stockTransferId: string;
   acceptedById: string;
-  latitude: number;
-  longitude: number;
-  accuracyMeters: number | null;
-  address: string | null;
   acceptedAt: string;
 };
 
@@ -324,13 +320,6 @@ export type StockRequest = {
   fulfilledTransfer: { id: string; transferId: string; status: StockTransferStatus } | null;
 };
 
-export type CounterLastLocation = {
-  latitude: number;
-  longitude: number;
-  address: string | null;
-  acceptedAt: string;
-};
-
 export type CounterOverview = {
   id: string;
   name: string;
@@ -342,7 +331,6 @@ export type CounterOverview = {
   totalTransactions: number;
   pendingStockCount: number;
   acceptedStockCount: number;
-  lastKnownLocation: CounterLastLocation | null;
 };
 
 export type CounterProfile = {
@@ -363,5 +351,4 @@ export type CounterProfile = {
     acceptedStockTransfers: number;
     acceptedStockQuantity: number;
   };
-  lastKnownLocation: CounterLastLocation | null;
 };

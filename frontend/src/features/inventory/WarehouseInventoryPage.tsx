@@ -130,7 +130,7 @@ export function WarehouseInventoryPage() {
         </div>
       </div>
 
-      <div className="scroll-fade-x flex w-fit gap-1 overflow-x-auto rounded-lg border border-border bg-surface p-1">
+      <div className="scroll-fade-x flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface p-1">
         {(
           [
             ['warehouse', 'Warehouse'],

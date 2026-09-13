@@ -28,18 +28,24 @@ export function useShopStock() {
   });
 }
 
-export function useWarehouseStock() {
+// Manager-only on the backend — callers must pass enabled: false for a
+// Counter so this never fires a doomed request or renders warehouse data.
+export function useWarehouseStock(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ['inventory', 'warehouse'],
     queryFn: () => api.get<WarehouseStockItem[]>('/inventory/warehouse'),
+    enabled: options.enabled ?? true,
   });
 }
 
-export function useMovements(productId?: string) {
+// Manager-only on the backend — callers must pass enabled: false for a
+// Counter so this never fires a doomed request or renders warehouse data.
+export function useMovements(productId?: string, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ['inventory', 'movements', productId ?? ''],
     queryFn: () =>
       api.get<StockMovement[]>(`/inventory/movements${productId ? `?productId=${productId}` : ''}`),
+    enabled: options.enabled ?? true,
   });
 }
 
@@ -134,18 +140,10 @@ export function useDispatchStock() {
   });
 }
 
-export type AcceptStockInput = {
-  latitude: number;
-  longitude: number;
-  accuracyMeters?: number;
-  address?: string;
-};
-
 export function useAcceptStock() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: AcceptStockInput }) =>
-      api.post(`/stock-transfers/${id}/accept`, data),
+    mutationFn: ({ id }: { id: string }) => api.post(`/stock-transfers/${id}/accept`),
     onSuccess: () => {
       invalidateStockTransfers(queryClient);
       toast.success('Stock accepted and added to shop inventory.');

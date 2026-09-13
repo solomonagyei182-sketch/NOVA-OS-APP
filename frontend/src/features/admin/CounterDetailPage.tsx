@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { ArrowLeft, DollarSign, Receipt, Package, Truck, MapPin, Clock } from 'lucide-react';
+import { ArrowLeft, DollarSign, Receipt, Package, Truck, Clock } from 'lucide-react';
 import { Badge } from '../../components/Badge';
 import { StatCard } from '../../components/StatCard';
 import { DataTable, type Column } from '../../components/DataTable';
@@ -88,19 +88,6 @@ export function CounterDetailPage() {
       header: 'Accepted',
       render: (r) => (r.acceptance ? formatDateTime(r.acceptance.acceptedAt) : '—'),
     },
-    {
-      key: 'location',
-      header: 'Acceptance location',
-      render: (r) =>
-        r.acceptance ? (
-          <span className="flex items-center gap-1 text-xs">
-            <MapPin size={12} className="text-fg-subtle" />
-            {r.acceptance.address ?? `${r.acceptance.latitude.toFixed(4)}, ${r.acceptance.longitude.toFixed(4)}`}
-          </span>
-        ) : (
-          '—'
-        ),
-    },
   ];
 
   return (
@@ -132,14 +119,6 @@ export function CounterDetailPage() {
             <Clock size={14} className="text-fg-subtle" />
             Last active {formatDateTime(profile.counter.lastLoginAt)}
           </div>
-          {profile.lastKnownLocation && (
-            <div className="flex items-center gap-2">
-              <MapPin size={14} className="text-fg-subtle" />
-              Last accepted stock at{' '}
-              {profile.lastKnownLocation.address ??
-                `${profile.lastKnownLocation.latitude.toFixed(4)}, ${profile.lastKnownLocation.longitude.toFixed(4)}`}
-            </div>
-          )}
         </div>
       </div>
 

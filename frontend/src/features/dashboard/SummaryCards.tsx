@@ -17,16 +17,16 @@ export function SummaryCards() {
 
   const todaySummary = useTodaySummary();
   const shopStock = useShopStock();
-  const warehouseStock = useWarehouseStock();
+  const warehouseStock = useWarehouseStock({ enabled: isManager });
   const customers = useCustomers({ tier: 'ALL', enabled: isManager });
   const trend = useSalesTrend(2);
 
-  const loading = todaySummary.isLoading || shopStock.isLoading || warehouseStock.isLoading;
+  const loading = todaySummary.isLoading || shopStock.isLoading || (isManager && warehouseStock.isLoading);
 
   if (loading) {
     return (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {Array.from({ length: isManager ? 8 : 6 }).map((_, i) => (
+        {Array.from({ length: isManager ? 8 : 5 }).map((_, i) => (
           <SkeletonCard key={i} />
         ))}
       </div>
@@ -57,7 +57,7 @@ export function SummaryCards() {
       <StatCard label="Transactions Today" value={todaySummary.data?.transactionCount ?? 0} icon={Receipt} tone="success" />
       <StatCard label="Today's Commission" value={formatMoney(todaySummary.data?.totalCommission ?? 0)} icon={Percent} tone="warning" />
       <StatCard label="Current Shop Stock" value={totalShopStock} icon={Store} tone="success" />
-      <StatCard label="Warehouse Stock" value={totalWarehouseStock} icon={Warehouse} tone="brand" />
+      {isManager && <StatCard label="Warehouse Stock" value={totalWarehouseStock} icon={Warehouse} tone="brand" />}
       <StatCard label="Low Stock Items" value={lowStockCount} icon={AlertTriangle} tone={lowStockCount > 0 ? 'danger' : 'success'} />
       {isManager && (
         <StatCard label="Total Customers" value={customers.data?.length ?? 0} icon={Users} tone="brand" />

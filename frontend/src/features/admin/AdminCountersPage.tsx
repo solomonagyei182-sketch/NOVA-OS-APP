@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { Search, Eye, MapPin } from 'lucide-react';
+import { Search, Eye } from 'lucide-react';
 import { Badge } from '../../components/Badge';
 import { DataTable, type Column } from '../../components/DataTable';
 import { useCounters } from './hooks';
@@ -36,19 +36,6 @@ export function AdminCountersPage() {
       key: 'status',
       header: 'Status',
       render: (r) => <Badge tone={r.isActive ? 'success' : 'danger'}>{r.isActive ? 'Active' : 'Inactive'}</Badge>,
-    },
-    {
-      key: 'location',
-      header: 'Last known location',
-      render: (r) =>
-        r.lastKnownLocation ? (
-          <span className="flex items-center gap-1 text-xs">
-            <MapPin size={12} className="text-fg-subtle" />
-            {r.lastKnownLocation.address ?? `${r.lastKnownLocation.latitude.toFixed(4)}, ${r.lastKnownLocation.longitude.toFixed(4)}`}
-          </span>
-        ) : (
-          '—'
-        ),
     },
     { key: 'totalTransactions', header: 'Transactions', render: (r) => r.totalTransactions },
     { key: 'totalSales', header: 'Total sales', render: (r) => formatMoney(r.totalSales) },

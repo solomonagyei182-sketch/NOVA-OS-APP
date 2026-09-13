@@ -78,7 +78,7 @@ export function DispatchStockModal({ open, onClose }: { open: boolean; onClose: 
 
         <p className="text-xs text-fg-subtle">
           The quantity leaves the warehouse immediately. It won't count toward shop stock until the Counter
-          formally accepts it and their live location is captured.
+          formally accepts it.
         </p>
 
         <Button type="submit" loading={isSubmitting} className="mt-1 w-full">
