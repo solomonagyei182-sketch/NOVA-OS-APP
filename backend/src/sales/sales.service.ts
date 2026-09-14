@@ -1,11 +1,13 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { BusinessDayService } from '../business-day/business-day.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { CreateSaleDto } from './dto/create-sale.dto';
+import { CorrectSaleDto } from './dto/correct-sale.dto';
 import { dateToDayString } from '../business-day/date.util';
+import type { AuthenticatedUser } from '../auth/types';
 
 export type SalesFilters = {
   search?: string;
@@ -22,6 +24,7 @@ const saleInclude = {
   product: { select: { name: true } },
   reseller: { select: { fullName: true } },
   counterUser: { select: { name: true } },
+  day: { select: { status: true } },
 } satisfies Prisma.SaleInclude;
 
 @Injectable()
@@ -120,6 +123,133 @@ export class SalesService {
     this.realtimeGateway.emit('sale:created', { saleId: sale.id, transactionId: sale.transactionId });
     this.realtimeGateway.emit('inventory:updated', { productId: sale.productId });
     return sale;
+  }
+
+  /**
+   * Corrects a mistaken sale in place — never creates a second transaction.
+   * Inventory is adjusted by the exact delta between the old and new
+   * quantity (or fully reversed and reapplied if the product itself was
+   * wrong), atomically, so every downstream calculation (which all read
+   * straight off the Sale table) reflects the fix on its next query with no
+   * separate propagation step needed.
+   */
+  async correctSale(id: string, dto: CorrectSaleDto, actingUser: AuthenticatedUser) {
+    const existing = await this.prisma.sale.findUnique({ where: { id }, include: saleInclude });
+    if (!existing) throw new NotFoundException('Sale not found.');
+
+    if (actingUser.role !== 'MANAGER' && existing.counterUserId !== actingUser.id) {
+      throw new ForbiddenException('You can only correct your own sales.');
+    }
+    if (existing.day.status === 'CLOSED') {
+      throw new BadRequestException(
+        "This sale's business day is closed. Ask a manager to reopen the day before correcting it.",
+      );
+    }
+
+    const newProductId = dto.productId ?? existing.productId;
+    const newQuantity = dto.quantity ?? existing.quantity;
+    const newUnitPrice = dto.unitPrice ?? existing.unitPrice ?? 0;
+    const newCommission = dto.commission ?? existing.commission;
+    const newResellerId = dto.resellerId ?? existing.resellerId;
+
+    if (dto.resellerId && dto.resellerId !== existing.resellerId) {
+      const reseller = await this.prisma.reseller.findUniqueOrThrow({ where: { id: dto.resellerId } });
+      if (reseller.status !== 'ACTIVE') {
+        throw new BadRequestException('This reseller is inactive and cannot be selected.');
+      }
+    }
+
+    const newPrice = newUnitPrice * newQuantity;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (newProductId === existing.productId) {
+        const delta = newQuantity - existing.quantity;
+        if (delta > 0) {
+          const result = await tx.product.updateMany({
+            where: { id: newProductId, shopQty: { gte: delta } },
+            data: { shopQty: { decrement: delta } },
+          });
+          if (result.count === 0) {
+            throw new BadRequestException("Not enough stock available to increase this sale's quantity.");
+          }
+        } else if (delta < 0) {
+          await tx.product.update({ where: { id: newProductId }, data: { shopQty: { increment: -delta } } });
+        }
+      } else {
+        const newProduct = await tx.product.findUniqueOrThrow({ where: { id: newProductId } });
+        if (newProduct.status !== 'ACTIVE') {
+          throw new BadRequestException('The corrected product is inactive and cannot be sold.');
+        }
+        // Restore the original product's stock in full, then apply the new
+        // product's decrement as one atomic conditional update — if that
+        // fails, the whole transaction (including the restore) rolls back.
+        await tx.product.update({
+          where: { id: existing.productId },
+          data: { shopQty: { increment: existing.quantity } },
+        });
+        const result = await tx.product.updateMany({
+          where: { id: newProductId, shopQty: { gte: newQuantity } },
+          data: { shopQty: { decrement: newQuantity } },
+        });
+        if (result.count === 0) {
+          throw new BadRequestException(
+            `Not enough stock of the corrected product. Only ${newProduct.shopQty} unit(s) available.`,
+          );
+        }
+      }
+
+      const sale = await tx.sale.update({
+        where: { id },
+        data: {
+          productId: newProductId,
+          resellerId: newResellerId,
+          quantity: newQuantity,
+          unitPrice: newUnitPrice,
+          price: newPrice,
+          commission: newCommission,
+        },
+        include: saleInclude,
+      });
+
+      await this.auditService.log(
+        {
+          userId: actingUser.id,
+          action: 'SALE_CORRECTED',
+          entityType: 'Sale',
+          entityId: id,
+          details: {
+            transactionId: existing.transactionId,
+            reason: dto.reason,
+            previous: {
+              product: existing.product.name,
+              reseller: existing.reseller?.fullName ?? null,
+              quantity: existing.quantity,
+              unitPrice: existing.unitPrice,
+              price: existing.price,
+              commission: existing.commission,
+            },
+            new: {
+              product: sale.product.name,
+              reseller: sale.reseller?.fullName ?? null,
+              quantity: newQuantity,
+              unitPrice: newUnitPrice,
+              price: newPrice,
+              commission: newCommission,
+            },
+          },
+        },
+        tx,
+      );
+
+      return sale;
+    });
+
+    this.realtimeGateway.emit('sale:updated', { saleId: id });
+    this.realtimeGateway.emit('inventory:updated', { productId: newProductId });
+    if (newProductId !== existing.productId) {
+      this.realtimeGateway.emit('inventory:updated', { productId: existing.productId });
+    }
+    return updated;
   }
 
   async listSales(filters: SalesFilters) {

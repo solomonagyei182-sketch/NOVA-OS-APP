@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { SalesService, type SalesFilters } from './sales.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
+import { CorrectSaleDto } from './dto/correct-sale.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/types';
 
@@ -11,6 +12,13 @@ export class SalesController {
   @Post()
   create(@Body() dto: CreateSaleDto, @CurrentUser() user: AuthenticatedUser) {
     return this.salesService.createSale(dto, user.id);
+  }
+
+  // No @Roles guard — a Counter may correct their own recent sale, a Manager
+  // may correct any sale; the service enforces exactly that boundary.
+  @Patch(':id')
+  correct(@Param('id') id: string, @Body() dto: CorrectSaleDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.salesService.correctSale(id, dto, user);
   }
 
   @Get()

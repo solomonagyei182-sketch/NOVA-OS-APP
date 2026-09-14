@@ -1,13 +1,17 @@
 import { useState } from 'react';
 import clsx from 'clsx';
-import { Plus, Search, Pencil } from 'lucide-react';
+import { Plus, Search, Pencil, ClipboardList, Archive, ArchiveRestore, Trash2, History } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
 import { Select } from '../../components/Select';
 import { DataTable, type Column } from '../../components/DataTable';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { RowActionsMenu } from '../../components/RowActionsMenu';
+import { RecordHistoryModal } from '../../components/RecordHistoryModal';
 import { useProducts } from '../../lib/queries';
-import { useActiveCompanies, useUpdateProduct } from '../inventory/hooks';
+import { useActiveCompanies, useDeleteProduct, useUpdateProduct } from '../inventory/hooks';
 import { ProductFormModal } from './ProductFormModal';
+import { CorrectStockModal } from './CorrectStockModal';
 import type { Product, ProductStatus } from '../../lib/types';
 
 const statusPills: { value: ProductStatus | 'ALL'; label: string }[] = [
@@ -27,10 +31,15 @@ export function AdminProductsPage() {
   const [companyFilter, setCompanyFilter] = useState('ALL');
   const [formOpen, setFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
+  const [correctingProduct, setCorrectingProduct] = useState<Product | undefined>(undefined);
+  const [archiveTarget, setArchiveTarget] = useState<Product | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [historyProduct, setHistoryProduct] = useState<Product | undefined>(undefined);
 
   const { data: products } = useProducts(search);
   const { data: companies } = useActiveCompanies();
   const updateProduct = useUpdateProduct();
+  const deleteProduct = useDeleteProduct();
 
   const filtered = (products ?? []).filter(
     (p) =>
@@ -48,11 +57,19 @@ export function AdminProductsPage() {
     setFormOpen(true);
   }
 
-  function toggleStatus(product: Product) {
-    updateProduct.mutate({
-      id: product.id,
-      data: { status: product.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' },
+  async function confirmToggleStatus() {
+    if (!archiveTarget) return;
+    await updateProduct.mutateAsync({
+      id: archiveTarget.id,
+      data: { status: archiveTarget.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' },
     });
+    setArchiveTarget(null);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    await deleteProduct.mutateAsync(deleteTarget.id);
+    setDeleteTarget(null);
   }
 
   const columns: Column<Product>[] = [
@@ -70,20 +87,35 @@ export function AdminProductsPage() {
     {
       key: 'actions',
       header: 'Actions',
-      render: (r) => (
-        <div className="flex gap-2">
-          <button
-            onClick={() => openEdit(r)}
-            className="rounded-lg p-1.5 text-fg-subtle hover:bg-surface-2 hover:text-fg"
-            aria-label={`Edit ${r.name}`}
-          >
-            <Pencil size={15} />
-          </button>
-          <Button variant="ghost" className="!px-2.5 !py-1 text-xs" onClick={() => toggleStatus(r)}>
-            {r.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
-          </Button>
-        </div>
-      ),
+      render: (r) => {
+        const historyCount = r._count
+          ? r._count.sales + r._count.stockTransfers + r._count.stockMovements + r._count.stockRequests
+          : 0;
+        const hasHistory = r._count ? historyCount > 0 : true; // unknown _count → assume history, safest default
+        return (
+          <RowActionsMenu
+            label={`Actions for ${r.name}`}
+            actions={[
+              { label: 'Edit details', icon: Pencil, onClick: () => openEdit(r) },
+              { label: 'Correct stock', icon: ClipboardList, onClick: () => setCorrectingProduct(r) },
+              {
+                label: r.status === 'ACTIVE' ? 'Archive (stop selling)' : 'Reactivate',
+                icon: r.status === 'ACTIVE' ? Archive : ArchiveRestore,
+                onClick: () => setArchiveTarget(r),
+              },
+              { label: 'History', icon: History, onClick: () => setHistoryProduct(r) },
+              {
+                label: 'Delete permanently',
+                icon: Trash2,
+                tone: 'danger',
+                onClick: () => setDeleteTarget(r),
+                disabled: hasHistory,
+                disabledReason: 'This product has transaction history — archive it instead to preserve those records.',
+              },
+            ]}
+          />
+        );
+      },
     },
   ];
 
@@ -145,6 +177,43 @@ export function AdminProductsPage() {
       <DataTable columns={columns} rows={filtered} keyField={(r) => r.id} emptyMessage="No products found." />
 
       <ProductFormModal open={formOpen} onClose={() => setFormOpen(false)} product={editingProduct} />
+      <CorrectStockModal
+        open={Boolean(correctingProduct)}
+        onClose={() => setCorrectingProduct(undefined)}
+        product={correctingProduct}
+      />
+      <RecordHistoryModal
+        open={Boolean(historyProduct)}
+        onClose={() => setHistoryProduct(undefined)}
+        title={`History — ${historyProduct?.name ?? ''}`}
+        entityType="Product"
+        entityId={historyProduct?.id}
+      />
+
+      <ConfirmDialog
+        open={Boolean(archiveTarget)}
+        onClose={() => setArchiveTarget(null)}
+        onConfirm={confirmToggleStatus}
+        title={archiveTarget?.status === 'ACTIVE' ? 'Archive product?' : 'Reactivate product?'}
+        message={
+          archiveTarget?.status === 'ACTIVE'
+            ? `"${archiveTarget?.name}" will no longer be available for new sales, but its previous transaction history will remain.`
+            : `"${archiveTarget?.name}" will become available for sale again.`
+        }
+        confirmLabel={archiveTarget?.status === 'ACTIVE' ? 'Archive' : 'Reactivate'}
+        loading={updateProduct.isPending}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        title="Delete product?"
+        message={`Are you sure you want to permanently delete "${deleteTarget?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete Product"
+        loading={deleteProduct.isPending}
+        danger
+      />
     </div>
   );
 }

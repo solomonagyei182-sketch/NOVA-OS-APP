@@ -51,6 +51,8 @@ export type Product = {
   status: ProductStatus;
   createdAt: string;
   updatedAt: string;
+  /** Manager-only — omitted from a Counter's response. Zero across all four means safe to permanently delete. */
+  _count?: { sales: number; stockTransfers: number; stockMovements: number; stockRequests: number };
 };
 
 export type StockStatus = 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK';
@@ -263,6 +265,7 @@ export type Sale = {
   product: { name: string };
   reseller: { fullName: string } | null;
   counterUser: { name: string };
+  day: { status: 'OPEN' | 'CLOSED' };
 };
 
 export type StockMovement = {

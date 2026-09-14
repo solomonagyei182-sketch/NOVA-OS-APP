@@ -111,6 +111,18 @@ export function useAuditLogs(limit: number, offset: number) {
   });
 }
 
+/** The full change history for one specific record — powers the "History" action. */
+export function useRecordHistory(entityType: string, entityId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['audit-logs', 'record', entityType, entityId],
+    queryFn: () =>
+      api.get<{ logs: AuditLogEntry[]; total: number }>(
+        `/audit-logs?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId ?? '')}&limit=100`,
+      ),
+    enabled: enabled && Boolean(entityId),
+  });
+}
+
 export function useSettings() {
   return useQuery({
     queryKey: ['settings'],

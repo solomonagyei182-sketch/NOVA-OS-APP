@@ -60,3 +60,28 @@ export function useCreateSale() {
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not record sale.'),
   });
 }
+
+export type CorrectSaleInput = {
+  productId?: string;
+  resellerId?: string;
+  quantity?: number;
+  unitPrice?: number;
+  commission?: number;
+  reason: string;
+};
+
+export function useCorrectSale() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: CorrectSaleInput }) => api.patch<Sale>(`/sales/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['calculations'] });
+      toast.success('Sale corrected.');
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not correct sale.'),
+  });
+}

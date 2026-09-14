@@ -10,6 +10,8 @@ export type RealtimeEvent =
   | 'reseller:updated'
   | 'product:created'
   | 'product:updated'
+  | 'product:deleted'
+  | 'sale:updated'
   | 'day:closed'
   | 'day:reopened'
   | 'session:created'

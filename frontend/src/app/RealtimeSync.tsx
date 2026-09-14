@@ -12,7 +12,8 @@ import { ConnectionStatusContext } from './ConnectionStatusContext';
 // authenticated REST endpoints, so role-based access stays enforced exactly
 // as it is for a manual page load; realtime only decides *when* to refetch.
 const EVENT_TO_QUERY_KEYS: Record<string, string[][]> = {
-  'sale:created': [['sales'], ['reports']],
+  'sale:created': [['sales'], ['reports'], ['calculations']],
+  'sale:updated': [['sales'], ['reports'], ['calculations'], ['inventory'], ['products']],
   'inventory:updated': [['inventory'], ['products'], ['reports']],
   'customer:created': [['customers']],
   'customer:updated': [['customers']],
@@ -20,6 +21,7 @@ const EVENT_TO_QUERY_KEYS: Record<string, string[][]> = {
   'reseller:updated': [['resellers'], ['reports'], ['sales']],
   'product:created': [['products'], ['inventory'], ['reports'], ['sales']],
   'product:updated': [['products'], ['inventory'], ['reports'], ['sales']],
+  'product:deleted': [['products'], ['inventory'], ['reports'], ['sales']],
   'company:created': [['companies'], ['products']],
   'company:updated': [['companies'], ['products']],
   'day:closed': [['business-day'], ['calculations'], ['reports']],

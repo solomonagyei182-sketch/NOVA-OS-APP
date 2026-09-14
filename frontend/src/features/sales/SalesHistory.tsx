@@ -1,10 +1,14 @@
 import { useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Pencil, History } from 'lucide-react';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { DataTable, type Column } from '../../components/DataTable';
+import { RowActionsMenu } from '../../components/RowActionsMenu';
+import { RecordHistoryModal } from '../../components/RecordHistoryModal';
 import { useActiveResellers, useProducts } from '../../lib/queries';
+import { useAuth } from '../auth/AuthContext';
 import { useSales, type SalesFilters } from './hooks';
+import { CorrectSaleModal } from './CorrectSaleModal';
 import type { Sale } from '../../lib/types';
 
 function formatDateTime(iso: string) {
@@ -16,13 +20,22 @@ function formatMoney(n: number) {
 }
 
 export function SalesHistory() {
+  const { user } = useAuth();
+  const isManager = user?.role === 'MANAGER';
   const [filters, setFilters] = useState<SalesFilters>({ sortBy: 'createdAt', sortDir: 'desc' });
   const { data: products } = useProducts();
   const { data: resellers } = useActiveResellers();
   const salesQuery = useSales(filters);
+  const [correcting, setCorrecting] = useState<Sale | null>(null);
+  const [historySale, setHistorySale] = useState<Sale | null>(null);
 
   function updateFilter<K extends keyof SalesFilters>(key: K, value: SalesFilters[K]) {
     setFilters((prev) => ({ ...prev, [key]: value || undefined }));
+  }
+
+  function canCorrect(sale: Sale) {
+    if (sale.day.status === 'CLOSED') return false;
+    return isManager || sale.counterUserId === user?.id;
   }
 
   const columns: Column<Sale>[] = [
@@ -34,6 +47,28 @@ export function SalesHistory() {
     { key: 'commission', header: 'Reseller Commission', render: (r) => formatMoney(r.commission) },
     { key: 'counterUser', header: 'Recorded by', render: (r) => r.counterUser.name },
     { key: 'createdAt', header: 'Date & time', render: (r) => formatDateTime(r.createdAt) },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (r) => (
+        <RowActionsMenu
+          label={`Actions for ${r.transactionId}`}
+          actions={[
+            {
+              label: 'Correct sale',
+              icon: Pencil,
+              onClick: () => setCorrecting(r),
+              disabled: !canCorrect(r),
+              disabledReason:
+                r.day.status === 'CLOSED'
+                  ? 'This sale is in a closed business day. Reopen the day to correct it.'
+                  : 'You can only correct your own sales.',
+            },
+            { label: 'History', icon: History, onClick: () => setHistorySale(r), hidden: !isManager },
+          ]}
+        />
+      ),
+    },
   ];
 
   return (
@@ -104,6 +139,15 @@ export function SalesHistory() {
         rows={salesQuery.data ?? []}
         keyField={(r) => r.id}
         emptyMessage="No sales recorded yet."
+      />
+
+      <CorrectSaleModal sale={correcting} onClose={() => setCorrecting(null)} />
+      <RecordHistoryModal
+        open={Boolean(historySale)}
+        onClose={() => setHistorySale(null)}
+        title={`History — ${historySale?.transactionId ?? ''}`}
+        entityType="Sale"
+        entityId={historySale?.id}
       />
     </div>
   );

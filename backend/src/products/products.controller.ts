@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ProductStatus } from '@prisma/client';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { CorrectStockDto } from './dto/correct-stock.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AuditService } from '../audit/audit.service';
@@ -68,16 +69,70 @@ export class ProductsController {
         details: { name: product.name },
       });
     } else {
+      // Only the fields actually submitted, each paired with its previous
+      // value — not just the new state, so the change is legible on its own
+      // in the activity log without cross-referencing anything else.
+      const changes: Record<string, { previous: unknown; new: unknown }> = {};
+      for (const key of Object.keys(dto) as (keyof UpdateProductDto)[]) {
+        if (key === 'status' || dto[key] === undefined) continue;
+        const previous = (existing as Record<string, unknown>)[key];
+        const next = (product as Record<string, unknown>)[key];
+        if (previous !== next) changes[key] = { previous, new: next };
+      }
       await this.auditService.log({
         userId: user.id,
         action: 'PRODUCT_UPDATED',
         entityType: 'Product',
         entityId: product.id,
-        details: dto as Record<string, unknown>,
+        details: { name: product.name, changes },
       });
     }
 
     this.realtimeGateway.emit('product:updated', { productId: product.id });
     return product;
+  }
+
+  @Roles('MANAGER')
+  @Patch(':id/correct-stock')
+  async correctStock(
+    @Param('id') id: string,
+    @Body() dto: CorrectStockDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { before, after } = await this.productsService.correctStock(id, dto);
+
+    await this.auditService.log({
+      userId: user.id,
+      action: 'INVENTORY_CORRECTED',
+      entityType: 'Product',
+      entityId: id,
+      details: {
+        name: after.name,
+        reason: dto.reason,
+        previous: { warehouseQty: before.warehouseQty, shopQty: before.shopQty },
+        new: { warehouseQty: after.warehouseQty, shopQty: after.shopQty },
+      },
+    });
+
+    this.realtimeGateway.emit('product:updated', { productId: id });
+    this.realtimeGateway.emit('inventory:updated', { productId: id });
+    return after;
+  }
+
+  @Roles('MANAGER')
+  @Delete(':id')
+  async remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    const deleted = await this.productsService.remove(id);
+
+    await this.auditService.log({
+      userId: user.id,
+      action: 'PRODUCT_DELETED',
+      entityType: 'Product',
+      entityId: id,
+      details: { name: deleted.name, sku: deleted.sku },
+    });
+
+    this.realtimeGateway.emit('product:deleted', { productId: id });
+    return { success: true };
   }
 }

@@ -90,6 +90,33 @@ export function useUpdateProduct() {
   });
 }
 
+export type CorrectStockInput = { warehouseQty?: number; shopQty?: number; reason: string };
+
+export function useCorrectStock() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: CorrectStockInput }) =>
+      api.patch<Product>(`/products/${id}/correct-stock`, data),
+    onSuccess: () => {
+      invalidateInventory(queryClient);
+      toast.success('Stock corrected.');
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not correct stock.'),
+  });
+}
+
+export function useDeleteProduct() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/products/${id}`),
+    onSuccess: () => {
+      invalidateInventory(queryClient);
+      toast.success('Product permanently deleted.');
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not delete product.'),
+  });
+}
+
 export function useAddWarehouseStock() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -8,9 +8,14 @@ export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
   @Get()
-  list(@Query('limit') limit?: string, @Query('offset') offset?: string) {
+  list(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('entityType') entityType?: string,
+    @Query('entityId') entityId?: string,
+  ) {
     const parsedLimit = limit ? Math.min(Math.max(Number(limit), 1), 200) : 50;
     const parsedOffset = offset ? Math.max(Number(offset), 0) : 0;
-    return this.auditService.list(parsedLimit, parsedOffset);
+    return this.auditService.list(parsedLimit, parsedOffset, { entityType, entityId });
   }
 }
