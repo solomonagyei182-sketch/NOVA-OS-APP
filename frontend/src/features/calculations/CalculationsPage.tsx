@@ -1,8 +1,12 @@
+import { useAuth } from '../auth/AuthContext';
 import { DayStatusCard } from './DayStatusCard';
+import { BusinessDaysCard } from './BusinessDaysCard';
 import { CalculationsCard } from './CalculationsCard';
 import { ProductLookupCard } from './ProductLookupCard';
 
 export function CalculationsPage() {
+  const { user } = useAuth();
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -10,6 +14,7 @@ export function CalculationsPage() {
         <p className="text-sm text-fg-muted">Daily, weekly, and monthly product performance.</p>
       </div>
       <DayStatusCard />
+      {user?.role === 'MANAGER' && <BusinessDaysCard />}
       <CalculationsCard />
       <ProductLookupCard />
     </div>

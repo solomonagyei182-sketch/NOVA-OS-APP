@@ -36,6 +36,13 @@ export function useTodayBusinessDay() {
   });
 }
 
+export function useBusinessDays() {
+  return useQuery({
+    queryKey: ['business-day', 'list'],
+    queryFn: () => api.get<BusinessDay[]>('/business-days'),
+  });
+}
+
 function invalidateDay(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ['business-day'] });
   queryClient.invalidateQueries({ queryKey: ['calculations'] });

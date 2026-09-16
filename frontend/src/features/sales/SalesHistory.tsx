@@ -55,7 +55,11 @@ export function SalesHistory() {
 
   function disabledReason(sale: Sale) {
     if (sale.status === 'DELETED') return 'This transaction has already been deleted.';
-    if (sale.day.status === 'CLOSED') return 'This day is closed. Ask a manager to reopen it first.';
+    if (sale.day.status === 'CLOSED') {
+      return isManager
+        ? 'This day is closed. Reopen it from Calculations → Business days.'
+        : 'This day is closed. Ask a manager to reopen it first.';
+    }
     return 'You can only modify your own transactions.';
   }
 
