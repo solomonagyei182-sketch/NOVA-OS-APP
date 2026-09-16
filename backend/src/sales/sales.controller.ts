@@ -3,6 +3,7 @@ import { SalesService, type SalesFilters } from './sales.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { CorrectSaleDto } from './dto/correct-sale.dto';
 import { DeleteSaleDto } from './dto/delete-sale.dto';
+import { BulkCreateSaleDto } from './dto/bulk-create-sale.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/types';
 
@@ -13,6 +14,14 @@ export class SalesController {
   @Post()
   create(@Body() dto: CreateSaleDto, @CurrentUser() user: AuthenticatedUser) {
     return this.salesService.createSale(dto, user.id);
+  }
+
+  // No @Roles guard — same authorization as single create(): a Counter may
+  // bulk-record sales exactly as they could one at a time. Bulk Entry changes
+  // how a sale is entered, never who is allowed to enter one.
+  @Post('bulk')
+  createBulk(@Body() dto: BulkCreateSaleDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.salesService.createSalesBulk(dto, user);
   }
 
   // No @Roles guard — a Counter may correct their own recent sale, a Manager

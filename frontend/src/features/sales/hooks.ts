@@ -68,6 +68,21 @@ export function useCreateSale() {
   });
 }
 
+export function useCreateSalesBulk() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: CreateSaleInput[]) => api.post<{ count: number; sales: Sale[] }>('/sales/bulk', { rows }),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['resellers'] });
+      toast.success(`Successfully recorded ${result.count} transaction${result.count === 1 ? '' : 's'}.`);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not record the batch.'),
+  });
+}
+
 export type CorrectSaleInput = {
   productId?: string;
   resellerId?: string;

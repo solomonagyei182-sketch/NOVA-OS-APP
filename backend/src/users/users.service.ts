@@ -1,10 +1,13 @@
-import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable } from '@nestjs/common';
 import bcrypt from 'bcryptjs';
 import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { CreateUserDto } from './dto/create-user.dto';
+import { BulkCreateUserDto } from './dto/bulk-create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+
+const MAX_BULK_ROWS = 100;
 
 const staffSelect = {
   id: true,
@@ -48,18 +51,58 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const created = await this.createUserInTx(this.prisma as any, dto);
+    this.realtimeGateway.emit('user:created', { userId: created.id });
+    return created;
+  }
+
+  /**
+   * The single unit of work behind account creation — used by create() (one
+   * account) and createBulk() (N accounts, one shared transaction), so Bulk
+   * Entry can never apply a different security check than Single Entry.
+   * Every account still goes through the same bcrypt hashing and the same
+   * email-uniqueness check; nothing about authentication is weakened.
+   */
+  private async createUserInTx(tx: Prisma.TransactionClient, dto: CreateUserDto) {
     const email = dto.email.trim().toLowerCase();
-    const existing = await this.findByEmail(email);
+    const existing = await tx.user.findUnique({ where: { email } });
     if (existing) {
       throw new ConflictException('A user with this email already exists.');
     }
     const passwordHash = await bcrypt.hash(dto.password, 10);
-    const created = await this.prisma.user.create({
+    return tx.user.create({
       data: { name: dto.name.trim(), email, passwordHash, role: dto.role },
       select: staffSelect,
     });
-    this.realtimeGateway.emit('user:created', { userId: created.id });
-    return created;
+  }
+
+  /** Bulk staff account creation — every row inside one transaction, all-or-nothing. */
+  async createBulk(dto: BulkCreateUserDto) {
+    if (!dto.rows?.length) {
+      throw new BadRequestException('At least one row is required.');
+    }
+    if (dto.rows.length > MAX_BULK_ROWS) {
+      throw new BadRequestException(`Bulk entry is limited to ${MAX_BULK_ROWS} rows at a time.`);
+    }
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const results: Prisma.PromiseReturnType<typeof this.createUserInTx>[] = [];
+      for (let i = 0; i < dto.rows.length; i++) {
+        try {
+          results.push(await this.createUserInTx(tx, dto.rows[i]));
+        } catch (err) {
+          const message = err instanceof HttpException ? err.message : 'Unexpected error while creating this account.';
+          throw new BadRequestException(`Row ${i + 1}: ${message}`);
+        }
+      }
+      return results;
+      // bcrypt hashing N times plus Neon connection latency can add up for a
+      // larger batch — same timeout margin used by every other bulk path.
+    }, { timeout: 15000 + dto.rows.length * 1000 });
+
+    created.forEach((u) => this.realtimeGateway.emit('user:created', { userId: u.id }));
+    return { count: created.length, users: created };
   }
 
   async update(id: string, dto: UpdateUserDto) {

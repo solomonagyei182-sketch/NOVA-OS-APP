@@ -7,11 +7,14 @@ export function Modal({
   onClose,
   title,
   children,
+  size = 'md',
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /** 'md' (default) fits a normal form; 'xl' is for wide content like a bulk-entry table. */
+  size?: 'md' | 'xl';
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -37,7 +40,8 @@ export function Modal({
       <div
         onClick={(e) => e.stopPropagation()}
         className={clsx(
-          'flex max-h-[calc(100dvh-4rem)] w-full max-w-md flex-col rounded-2xl bg-surface shadow-xl transition-all duration-150',
+          'flex max-h-[calc(100dvh-4rem)] w-full flex-col rounded-2xl bg-surface shadow-xl transition-all duration-150',
+          size === 'xl' ? 'max-w-4xl' : 'max-w-md',
           visible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-2 scale-95 opacity-0',
         )}
       >

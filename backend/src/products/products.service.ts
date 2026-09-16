@@ -1,10 +1,13 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { Prisma, ProductStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompaniesService } from '../companies/companies.service';
 import { CreateProductDto } from './dto/create-product.dto';
+import { BulkCreateProductDto } from './dto/bulk-create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CorrectStockDto } from './dto/correct-stock.dto';
+
+const MAX_BULK_ROWS = 200;
 
 const productInclude = {
   company: { select: { id: true, name: true } },
@@ -58,6 +61,55 @@ export class ProductsService {
       },
       include: productInclude,
     });
+  }
+
+  /**
+   * Bulk product creation — reuses resolveCompanyId() per row (same
+   * find-or-create-by-name logic Single Entry uses) and creates every row
+   * inside one transaction, so the batch is all-or-nothing.
+   */
+  async createBulk(dto: BulkCreateProductDto) {
+    if (!dto.rows?.length) {
+      throw new BadRequestException('At least one row is required.');
+    }
+    if (dto.rows.length > MAX_BULK_ROWS) {
+      throw new BadRequestException(`Bulk entry is limited to ${MAX_BULK_ROWS} rows at a time.`);
+    }
+
+    // Company resolution (including creating brand-new companies by name)
+    // happens outside the atomic block — like BusinessDay creation in Sales,
+    // a company existing without a product attached to it isn't a
+    // correctness problem, so it doesn't need to roll back with the batch.
+    const companyIds: (string | null)[] = [];
+    for (const row of dto.rows) {
+      companyIds.push(await this.resolveCompanyId(row.companyId, row.newCompanyName));
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const created: Prisma.ProductGetPayload<{ include: typeof productInclude }>[] = [];
+      for (let i = 0; i < dto.rows.length; i++) {
+        const row = dto.rows[i];
+        const product = await tx.product.create({
+          data: {
+            name: row.name,
+            sku: row.sku || null,
+            category: row.category,
+            companyId: companyIds[i],
+            costPrice: row.costPrice,
+            sellingPrice: row.sellingPrice,
+            warehouseQty: row.warehouseQty ?? 0,
+            shopQty: row.shopQty ?? 0,
+            lowStockThreshold: row.lowStockThreshold ?? 10,
+          },
+          include: productInclude,
+        });
+        created.push(product);
+      }
+      return created;
+      // Same Neon-latency margin as the Sales bulk transaction — a cold
+      // connection can otherwise exceed Prisma's default 5s budget and fail
+      // a perfectly valid batch with a confusing "conflict" error.
+    }, { timeout: 15000 + dto.rows.length * 1000 });
   }
 
   async update(id: string, dto: UpdateProductDto) {

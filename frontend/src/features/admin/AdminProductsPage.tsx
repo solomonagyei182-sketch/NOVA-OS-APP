@@ -8,9 +8,11 @@ import { DataTable, type Column } from '../../components/DataTable';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { RowActionsMenu } from '../../components/RowActionsMenu';
 import { RecordHistoryModal } from '../../components/RecordHistoryModal';
+import { EntryModeModal } from '../../components/EntryModeModal';
 import { useProducts } from '../../lib/queries';
 import { useActiveCompanies, useDeleteProduct, useUpdateProduct } from '../inventory/hooks';
 import { ProductFormModal } from './ProductFormModal';
+import { BulkProductsModal } from '../inventory/BulkProductsModal';
 import { CorrectStockModal } from './CorrectStockModal';
 import type { Product, ProductStatus } from '../../lib/types';
 
@@ -29,7 +31,9 @@ export function AdminProductsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProductStatus | 'ALL'>('ALL');
   const [companyFilter, setCompanyFilter] = useState('ALL');
+  const [entryModeOpen, setEntryModeOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
   const [correctingProduct, setCorrectingProduct] = useState<Product | undefined>(undefined);
   const [archiveTarget, setArchiveTarget] = useState<Product | null>(null);
@@ -49,7 +53,7 @@ export function AdminProductsPage() {
 
   function openAdd() {
     setEditingProduct(undefined);
-    setFormOpen(true);
+    setEntryModeOpen(true);
   }
 
   function openEdit(product: Product) {
@@ -176,7 +180,21 @@ export function AdminProductsPage() {
 
       <DataTable columns={columns} rows={filtered} keyField={(r) => r.id} emptyMessage="No products found." />
 
+      <EntryModeModal
+        open={entryModeOpen}
+        onClose={() => setEntryModeOpen(false)}
+        title="Add product — choose entry method"
+        onChooseSingle={() => {
+          setEntryModeOpen(false);
+          setFormOpen(true);
+        }}
+        onChooseBulk={() => {
+          setEntryModeOpen(false);
+          setBulkOpen(true);
+        }}
+      />
       <ProductFormModal open={formOpen} onClose={() => setFormOpen(false)} product={editingProduct} />
+      <BulkProductsModal open={bulkOpen} onClose={() => setBulkOpen(false)} />
       <CorrectStockModal
         open={Boolean(correctingProduct)}
         onClose={() => setCorrectingProduct(undefined)}

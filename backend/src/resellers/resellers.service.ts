@@ -1,10 +1,13 @@
-import { Injectable } from '@nestjs/common';
-import { Prisma, ResellerStatus } from '@prisma/client';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { Prisma, Reseller, ResellerStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { CreateResellerDto } from './dto/create-reseller.dto';
+import { BulkCreateResellerDto } from './dto/bulk-create-reseller.dto';
 import { UpdateResellerDto } from './dto/update-reseller.dto';
+
+const MAX_BULK_ROWS = 200;
 
 @Injectable()
 export class ResellersService {
@@ -104,6 +107,35 @@ export class ResellersService {
 
     this.realtimeGateway.emit('reseller:created', { resellerId: reseller.id });
     return reseller;
+  }
+
+  /** Bulk reseller creation — every row inside one transaction, all-or-nothing. */
+  async createBulk(dto: BulkCreateResellerDto, userId: string) {
+    if (!dto.rows?.length) {
+      throw new BadRequestException('At least one row is required.');
+    }
+    if (dto.rows.length > MAX_BULK_ROWS) {
+      throw new BadRequestException(`Bulk entry is limited to ${MAX_BULK_ROWS} rows at a time.`);
+    }
+
+    const resellers = await this.prisma.$transaction(async (tx) => {
+      const created: Reseller[] = [];
+      for (const row of dto.rows) {
+        created.push(await tx.reseller.create({ data: row }));
+      }
+      return created;
+    }, { timeout: 15000 + dto.rows.length * 1000 });
+
+    await this.auditService.log({
+      userId,
+      action: 'RESELLERS_BULK_CREATED',
+      entityType: 'Reseller',
+      entityId: resellers[0].id,
+      details: { count: resellers.length, names: resellers.map((r) => r.fullName) },
+    });
+
+    resellers.forEach((r) => this.realtimeGateway.emit('reseller:created', { resellerId: r.id }));
+    return { count: resellers.length, resellers };
   }
 
   async update(id: string, dto: UpdateResellerDto, userId: string) {

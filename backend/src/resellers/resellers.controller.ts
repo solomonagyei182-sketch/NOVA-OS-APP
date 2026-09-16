@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common
 import { ResellerStatus } from '@prisma/client';
 import { ResellersService } from './resellers.service';
 import { CreateResellerDto } from './dto/create-reseller.dto';
+import { BulkCreateResellerDto } from './dto/bulk-create-reseller.dto';
 import { UpdateResellerDto } from './dto/update-reseller.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -33,6 +34,12 @@ export class ResellersController {
   @Post()
   create(@Body() dto: CreateResellerDto, @CurrentUser() user: AuthenticatedUser) {
     return this.resellersService.create(dto, user.id);
+  }
+
+  @Roles('MANAGER')
+  @Post('bulk')
+  createBulk(@Body() dto: BulkCreateResellerDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.resellersService.createBulk(dto, user.id);
   }
 
   @Roles('MANAGER')

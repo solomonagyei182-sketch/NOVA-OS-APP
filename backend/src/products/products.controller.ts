@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import { ProductStatus } from '@prisma/client';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
+import { BulkCreateProductDto } from './dto/bulk-create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CorrectStockDto } from './dto/correct-stock.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -48,6 +49,22 @@ export class ProductsController {
     });
     this.realtimeGateway.emit('product:created', { productId: product.id });
     return product;
+  }
+
+  @Roles('MANAGER')
+  @Post('bulk')
+  async createBulk(@Body() dto: BulkCreateProductDto, @CurrentUser() user: AuthenticatedUser) {
+    const products = await this.productsService.createBulk(dto);
+
+    await this.auditService.log({
+      userId: user.id,
+      action: 'PRODUCTS_BULK_CREATED',
+      entityType: 'Product',
+      entityId: products[0].id,
+      details: { count: products.length, names: products.map((p) => p.name) },
+    });
+    products.forEach((p) => this.realtimeGateway.emit('product:created', { productId: p.id }));
+    return { count: products.length, products };
   }
 
   @Roles('MANAGER')

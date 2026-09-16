@@ -4,6 +4,7 @@ import { Plus, ArrowRightLeft, Truck } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
 import { DataTable, type Column } from '../../components/DataTable';
+import { EntryModeModal } from '../../components/EntryModeModal';
 import {
   useMovements,
   usePendingStockRequests,
@@ -11,6 +12,7 @@ import {
   useWarehouseStock,
 } from './hooks';
 import { AddWarehouseStockModal } from './AddWarehouseStockModal';
+import { BulkAddWarehouseStockModal } from './BulkAddWarehouseStockModal';
 import { TransferToShopModal } from './TransferToShopModal';
 import { DispatchStockModal } from './DispatchStockModal';
 import { FulfillStockRequestModal } from './FulfillStockRequestModal';
@@ -43,7 +45,9 @@ type Tab = 'warehouse' | 'shop' | 'requests' | 'movements';
 // themselves, so a Counter can never reach this view or its data.
 export function WarehouseInventoryPage() {
   const [tab, setTab] = useState<Tab>('warehouse');
+  const [entryModeOpen, setEntryModeOpen] = useState(false);
   const [addStockOpen, setAddStockOpen] = useState(false);
+  const [bulkAddStockOpen, setBulkAddStockOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [fulfilling, setFulfilling] = useState<StockRequest | null>(null);
@@ -115,7 +119,7 @@ export function WarehouseInventoryPage() {
           <p className="text-sm text-fg-muted">Warehouse and shop stock, transfers, and requests.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => setAddStockOpen(true)}>
+          <Button variant="secondary" onClick={() => setEntryModeOpen(true)}>
             <Plus size={16} />
             Warehouse stock-in
           </Button>
@@ -190,7 +194,21 @@ export function WarehouseInventoryPage() {
         />
       )}
 
+      <EntryModeModal
+        open={entryModeOpen}
+        onClose={() => setEntryModeOpen(false)}
+        title="Warehouse stock-in — choose entry method"
+        onChooseSingle={() => {
+          setEntryModeOpen(false);
+          setAddStockOpen(true);
+        }}
+        onChooseBulk={() => {
+          setEntryModeOpen(false);
+          setBulkAddStockOpen(true);
+        }}
+      />
       <AddWarehouseStockModal open={addStockOpen} onClose={() => setAddStockOpen(false)} />
+      <BulkAddWarehouseStockModal open={bulkAddStockOpen} onClose={() => setBulkAddStockOpen(false)} />
       <TransferToShopModal open={transferOpen} onClose={() => setTransferOpen(false)} />
       <DispatchStockModal open={dispatchOpen} onClose={() => setDispatchOpen(false)} />
       <FulfillStockRequestModal request={fulfilling} onClose={() => setFulfilling(null)} />

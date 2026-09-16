@@ -43,6 +43,19 @@ export function useCreateReseller() {
   });
 }
 
+export function useCreateResellersBulk() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: ResellerInput[]) =>
+      api.post<{ count: number; resellers: ResellerListItem[] }>('/resellers/bulk', { rows }),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['resellers'] });
+      toast.success(`Successfully added ${result.count} reseller${result.count === 1 ? '' : 's'}.`);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not add the batch.'),
+  });
+}
+
 export function useUpdateReseller() {
   const queryClient = useQueryClient();
   return useMutation({

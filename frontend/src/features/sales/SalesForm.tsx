@@ -1,13 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Clock } from 'lucide-react';
+import { Clock, ListPlus } from 'lucide-react';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { Button } from '../../components/Button';
 import { useActiveProducts, useActiveResellers } from '../../lib/queries';
 import { useCreateSale } from './hooks';
+import { BulkSalesModal } from './BulkSalesModal';
 
 const schema = z.object({
   resellerId: z.string().min(1, 'Select a reseller'),
@@ -28,6 +29,7 @@ export function SalesForm() {
   const { data: resellers } = useActiveResellers();
   const { data: products } = useActiveProducts();
   const createSale = useCreateSale();
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const {
     register,
@@ -65,11 +67,17 @@ export function SalesForm() {
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-5">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-fg">Record a sale</h2>
-        <div className="flex items-center gap-1.5 text-xs text-fg-subtle">
-          <Clock size={14} />
-          {now.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-xs text-fg-subtle">
+            <Clock size={14} />
+            {now.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+          </div>
+          <Button variant="secondary" className="!px-3 !py-1.5 text-xs" onClick={() => setBulkOpen(true)}>
+            <ListPlus size={14} />
+            Bulk entry
+          </Button>
         </div>
       </div>
 
@@ -136,6 +144,8 @@ export function SalesForm() {
           </Button>
         </div>
       </form>
+
+      <BulkSalesModal open={bulkOpen} onClose={() => setBulkOpen(false)} />
     </div>
   );
 }

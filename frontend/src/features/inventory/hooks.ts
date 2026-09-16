@@ -77,6 +77,18 @@ export function useCreateProduct() {
   });
 }
 
+export function useCreateProductsBulk() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: ProductInput[]) => api.post<{ count: number; products: Product[] }>('/products/bulk', { rows }),
+    onSuccess: (result) => {
+      invalidateInventory(queryClient);
+      toast.success(`Successfully added ${result.count} product${result.count === 1 ? '' : 's'}.`);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not add the batch.'),
+  });
+}
+
 export function useUpdateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -127,6 +139,19 @@ export function useAddWarehouseStock() {
       toast.success('Warehouse stock updated.');
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not add stock.'),
+  });
+}
+
+export function useAddWarehouseStockBulk() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: { productId: string; quantity: number }[]) =>
+      api.post<{ count: number }>('/inventory/warehouse-stock/bulk', { rows }),
+    onSuccess: (result) => {
+      invalidateInventory(queryClient);
+      toast.success(`Successfully recorded ${result.count} stock-in ${result.count === 1 ? 'entry' : 'entries'}.`);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not record the batch.'),
   });
 }
 

@@ -46,6 +46,18 @@ export function useCreateStaff() {
   });
 }
 
+export function useCreateStaffBulk() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: CreateStaffInput[]) => api.post<{ count: number; users: StaffUser[] }>('/users/bulk', { rows }),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      toast.success(`Successfully created ${result.count} account${result.count === 1 ? '' : 's'}.`);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not create the batch.'),
+  });
+}
+
 export function useUpdateStaff() {
   const queryClient = useQueryClient();
   return useMutation({

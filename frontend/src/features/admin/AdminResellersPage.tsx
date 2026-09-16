@@ -7,6 +7,8 @@ import { Badge } from '../../components/Badge';
 import { DataTable, type Column } from '../../components/DataTable';
 import { useResellers, useUpdateReseller } from '../resellers/hooks';
 import { ResellerFormModal } from './ResellerFormModal';
+import { BulkResellersModal } from '../resellers/BulkResellersModal';
+import { EntryModeModal } from '../../components/EntryModeModal';
 import type { ResellerListItem, ResellerStatus } from '../../lib/types';
 
 const statusPills: { value: ResellerStatus | 'ALL'; label: string }[] = [
@@ -28,7 +30,9 @@ export function AdminResellersPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<ResellerStatus | 'ALL'>('ALL');
+  const [entryModeOpen, setEntryModeOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [editingReseller, setEditingReseller] = useState<ResellerListItem | undefined>(undefined);
 
   const { data: resellers } = useResellers({ search, status });
@@ -36,7 +40,7 @@ export function AdminResellersPage() {
 
   function openAdd() {
     setEditingReseller(undefined);
-    setFormOpen(true);
+    setEntryModeOpen(true);
   }
 
   function openEdit(reseller: ResellerListItem) {
@@ -135,7 +139,21 @@ export function AdminResellersPage() {
 
       <DataTable columns={columns} rows={resellers ?? []} keyField={(r) => r.id} emptyMessage="No resellers found." />
 
+      <EntryModeModal
+        open={entryModeOpen}
+        onClose={() => setEntryModeOpen(false)}
+        title="Add reseller — choose entry method"
+        onChooseSingle={() => {
+          setEntryModeOpen(false);
+          setFormOpen(true);
+        }}
+        onChooseBulk={() => {
+          setEntryModeOpen(false);
+          setBulkOpen(true);
+        }}
+      />
       <ResellerFormModal open={formOpen} onClose={() => setFormOpen(false)} reseller={editingReseller} />
+      <BulkResellersModal open={bulkOpen} onClose={() => setBulkOpen(false)} />
     </div>
   );
 }

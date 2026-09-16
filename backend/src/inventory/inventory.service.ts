@@ -1,10 +1,14 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
+import type { Product } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { AddWarehouseStockDto } from './dto/add-warehouse-stock.dto';
+import { BulkAddWarehouseStockDto } from './dto/bulk-add-warehouse-stock.dto';
 import { TransferToShopDto } from './dto/transfer-to-shop.dto';
 import { getStockStatus } from './stock-status';
+
+const MAX_BULK_ROWS = 200;
 
 @Injectable()
 export class InventoryService {
@@ -70,6 +74,70 @@ export class InventoryService {
 
     this.realtimeGateway.emit('inventory:updated', { productId: product.id });
     return product;
+  }
+
+  /**
+   * Bulk warehouse stock-in — every row goes through the exact same
+   * increment + StockMovement + audit-log steps as addWarehouseStock(),
+   * inside one shared transaction so the whole batch is atomic: if any row
+   * fails, none of the rows before it are left applied either.
+   */
+  async addWarehouseStockBulk(dto: BulkAddWarehouseStockDto, userId: string) {
+    if (!dto.rows?.length) {
+      throw new BadRequestException('At least one row is required.');
+    }
+    if (dto.rows.length > MAX_BULK_ROWS) {
+      throw new BadRequestException(`Bulk entry is limited to ${MAX_BULK_ROWS} rows at a time.`);
+    }
+
+    const updatedProducts = await this.prisma.$transaction(
+      async (tx) => {
+        const products: Product[] = [];
+        for (let i = 0; i < dto.rows.length; i++) {
+          const row = dto.rows[i];
+          try {
+            const product = await tx.product.update({
+              where: { id: row.productId },
+              data: { warehouseQty: { increment: row.quantity } },
+            });
+
+            await tx.stockMovement.create({
+              data: {
+                productId: row.productId,
+                type: 'WAREHOUSE_IN',
+                quantity: row.quantity,
+                performedById: userId,
+              },
+            });
+
+            products.push(product);
+          } catch (err) {
+            const message = err instanceof HttpException ? err.message : 'Product not found.';
+            throw new BadRequestException(`Row ${i + 1}: ${message}`);
+          }
+        }
+
+        await this.auditService.log(
+          {
+            userId,
+            action: 'WAREHOUSE_STOCK_BULK_ADDED',
+            entityType: 'Product',
+            entityId: products[0].id,
+            details: {
+              count: products.length,
+              rows: dto.rows.map((r, i) => ({ productId: r.productId, quantity: r.quantity, newWarehouseQty: products[i].warehouseQty })),
+            },
+          },
+          tx,
+        );
+
+        return products;
+      },
+      { timeout: 15000 + dto.rows.length * 1000 },
+    );
+
+    updatedProducts.forEach((p) => this.realtimeGateway.emit('inventory:updated', { productId: p.id }));
+    return { count: updatedProducts.length, products: updatedProducts };
   }
 
   async transferToShop(dto: TransferToShopDto, userId: string) {

@@ -4,9 +4,11 @@ import { Plus, Search, Pencil } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
 import { DataTable, type Column } from '../../components/DataTable';
+import { EntryModeModal } from '../../components/EntryModeModal';
 import { useAuth } from '../auth/AuthContext';
 import { useStaffList, useUpdateStaff } from './hooks';
 import { StaffFormModal } from './StaffFormModal';
+import { BulkStaffModal } from './BulkStaffModal';
 import type { Role, StaffUser } from '../../lib/types';
 
 const rolePills: { value: Role | 'ALL'; label: string }[] = [
@@ -31,7 +33,9 @@ export function AdminStaffPage() {
   const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [role, setRole] = useState<Role | 'ALL'>('ALL');
+  const [entryModeOpen, setEntryModeOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffUser | undefined>(undefined);
 
   const { data: staff } = useStaffList({ search, role });
@@ -39,7 +43,7 @@ export function AdminStaffPage() {
 
   function openAdd() {
     setEditingStaff(undefined);
-    setFormOpen(true);
+    setEntryModeOpen(true);
   }
 
   function openEdit(member: StaffUser) {
@@ -127,7 +131,21 @@ export function AdminStaffPage() {
 
       <DataTable columns={columns} rows={staff ?? []} keyField={(r) => r.id} emptyMessage="No staff accounts found." />
 
+      <EntryModeModal
+        open={entryModeOpen}
+        onClose={() => setEntryModeOpen(false)}
+        title="Create staff account — choose entry method"
+        onChooseSingle={() => {
+          setEntryModeOpen(false);
+          setFormOpen(true);
+        }}
+        onChooseBulk={() => {
+          setEntryModeOpen(false);
+          setBulkOpen(true);
+        }}
+      />
       <StaffFormModal open={formOpen} onClose={() => setFormOpen(false)} staff={editingStaff} />
+      <BulkStaffModal open={bulkOpen} onClose={() => setBulkOpen(false)} />
     </div>
   );
 }

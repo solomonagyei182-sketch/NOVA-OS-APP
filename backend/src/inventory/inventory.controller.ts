@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { AddWarehouseStockDto } from './dto/add-warehouse-stock.dto';
+import { BulkAddWarehouseStockDto } from './dto/bulk-add-warehouse-stock.dto';
 import { TransferToShopDto } from './dto/transfer-to-shop.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -38,6 +39,12 @@ export class InventoryController {
   @Post('warehouse-stock')
   addWarehouseStock(@Body() dto: AddWarehouseStockDto, @CurrentUser() user: AuthenticatedUser) {
     return this.inventoryService.addWarehouseStock(dto, user.id);
+  }
+
+  @Roles('MANAGER')
+  @Post('warehouse-stock/bulk')
+  addWarehouseStockBulk(@Body() dto: BulkAddWarehouseStockDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.inventoryService.addWarehouseStockBulk(dto, user.id);
   }
 
   @Roles('MANAGER')

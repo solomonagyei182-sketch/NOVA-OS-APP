@@ -1,5 +1,5 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, SaleStatus } from '@prisma/client';
+import { BadRequestException, ForbiddenException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
+import { BusinessDay, Prisma, SaleStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { BusinessDayService } from '../business-day/business-day.service';
@@ -7,8 +7,11 @@ import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { CorrectSaleDto } from './dto/correct-sale.dto';
 import { DeleteSaleDto } from './dto/delete-sale.dto';
+import { BulkCreateSaleDto } from './dto/bulk-create-sale.dto';
 import { dateToDayString } from '../business-day/date.util';
 import type { AuthenticatedUser } from '../auth/types';
+
+const MAX_BULK_ROWS = 200;
 
 export type SalesFilters = {
   search?: string;
@@ -45,104 +48,18 @@ export class SalesService {
   async createSale(dto: CreateSaleDto, actingUserId: string) {
     const todayStr = dateToDayString();
     const transactionDateStr = dto.transactionDate ?? todayStr;
-    const isHistorical = transactionDateStr !== todayStr;
-
-    if (transactionDateStr > todayStr) {
-      throw new BadRequestException('Transaction date cannot be in the future.');
-    }
-    if (isHistorical && !dto.reason?.trim()) {
-      throw new BadRequestException('A reason is required when adding a transaction for a past date.');
-    }
-
     const day = await this.businessDayService.getOrCreateForDate(transactionDateStr);
 
-    if (day.status === 'CLOSED') {
-      throw new BadRequestException(
-        isHistorical
-          ? `${transactionDateStr} is closed. Ask a manager to reopen that day before adding a transaction to it.`
-          : "Today's transactions are closed. Ask a manager to reopen the day before recording new sales.",
-      );
-    }
-
-    const reseller = await this.prisma.reseller.findUniqueOrThrow({ where: { id: dto.resellerId } });
-    if (reseller.status !== 'ACTIVE') {
-      throw new BadRequestException('This reseller is inactive and cannot be selected for new sales.');
-    }
-
-    const quantity = dto.quantity ?? 1;
-    const total = dto.unitPrice * quantity;
-    // Historical entries keep their true entry timestamp via createdAt's
-    // default; only the calendar date portion is backdated for reporting.
-    const transactionDate = new Date(`${transactionDateStr}T12:00:00.000Z`);
-
     const sale = await this.prisma.$transaction(async (tx) => {
-      const product = await tx.product.findUniqueOrThrow({ where: { id: dto.productId } });
-
-      if (product.status !== 'ACTIVE') {
-        throw new BadRequestException('This product is inactive and cannot be selected for new sales.');
-      }
-
-      // Condition the UPDATE on having enough stock rather than checking then
-      // writing separately — under concurrent sales of the same product, two
-      // reads could both pass a standalone check before either commits,
-      // driving shopQty negative. This makes it one atomic database operation.
-      const result = await tx.product.updateMany({
-        where: { id: dto.productId, shopQty: { gte: quantity } },
-        data: { shopQty: { decrement: quantity } },
-      });
-      if (result.count === 0) {
-        throw new BadRequestException('Insufficient stock available.');
-      }
-      const updatedProduct = await tx.product.findUniqueOrThrow({ where: { id: dto.productId } });
-
-      // Atomic increment on the day row — safe under concurrent writers (Postgres
-      // serializes UPDATEs to the same row), unlike a count()-then-insert approach
-      // which two simultaneous sales could both read before either commits.
-      const updatedDay = await tx.businessDay.update({
-        where: { id: day.id },
-        data: { saleCounter: { increment: 1 } },
-      });
-      const transactionId = `SL-${day.date.replace(/-/g, '')}-${String(updatedDay.saleCounter).padStart(4, '0')}`;
-
-      const sale = await tx.sale.create({
-        data: {
-          transactionId,
-          productId: dto.productId,
-          resellerId: dto.resellerId,
-          counterUserId: actingUserId,
-          quantity,
-          unitPrice: dto.unitPrice,
-          price: total,
-          commission: dto.commission,
-          dayId: day.id,
-          transactionDate,
-        },
-        include: saleInclude,
-      });
-
-      await this.auditService.log(
-        {
-          userId: actingUserId,
-          action: isHistorical ? 'SALE_ADDED_HISTORICAL' : 'SALE_CREATED',
-          entityType: 'Sale',
-          entityId: sale.id,
-          details: {
-            transactionId: sale.transactionId,
-            product: product.name,
-            reseller: reseller.fullName,
-            quantity,
-            unitPrice: dto.unitPrice,
-            total,
-            commission: dto.commission,
-            remainingShopQty: updatedProduct.shopQty,
-            transactionDate: transactionDateStr,
-            ...(isHistorical ? { reason: dto.reason } : {}),
-          },
-        },
-        tx,
-      );
-
-      return sale;
+      return this.createSaleRowInTx(tx, day, {
+        productId: dto.productId,
+        resellerId: dto.resellerId,
+        quantity: dto.quantity ?? 1,
+        unitPrice: dto.unitPrice,
+        commission: dto.commission,
+        transactionDateStr,
+        reason: dto.reason,
+      }, actingUserId);
       // A slow Neon round-trip can otherwise exceed Prisma's default 5s
       // transaction budget mid-write and fail a perfectly legitimate sale
       // with a confusing "conflict" error — this is a genuinely observed
@@ -152,6 +69,208 @@ export class SalesService {
     this.realtimeGateway.emit('sale:created', { saleId: sale.id, transactionId: sale.transactionId });
     this.realtimeGateway.emit('inventory:updated', { productId: sale.productId });
     return sale;
+  }
+
+  /**
+   * The single unit of work behind every sale — used both by createSale
+   * (one row, one transaction) and createSalesBulk (N rows, one shared
+   * transaction). Keeping this in exactly one place is what guarantees Single
+   * Entry and Bulk Entry can never drift into different business rules.
+   */
+  private async createSaleRowInTx(
+    tx: Prisma.TransactionClient,
+    day: BusinessDay,
+    row: {
+      productId: string;
+      resellerId: string;
+      quantity: number;
+      unitPrice: number;
+      commission: number;
+      transactionDateStr: string;
+      reason?: string;
+    },
+    actingUserId: string,
+  ) {
+    const todayStr = dateToDayString();
+    const isHistorical = row.transactionDateStr !== todayStr;
+
+    if (row.transactionDateStr > todayStr) {
+      throw new BadRequestException('Transaction date cannot be in the future.');
+    }
+    if (isHistorical && !row.reason?.trim()) {
+      throw new BadRequestException('A reason is required when adding a transaction for a past date.');
+    }
+    if (day.status === 'CLOSED') {
+      throw new BadRequestException(
+        isHistorical
+          ? `${row.transactionDateStr} is closed. Ask a manager to reopen that day before adding a transaction to it.`
+          : "Today's transactions are closed. Ask a manager to reopen the day before recording new sales.",
+      );
+    }
+
+    const reseller = await tx.reseller.findUniqueOrThrow({ where: { id: row.resellerId } });
+    if (reseller.status !== 'ACTIVE') {
+      throw new BadRequestException('This reseller is inactive and cannot be selected for new sales.');
+    }
+
+    const quantity = row.quantity;
+    const total = row.unitPrice * quantity;
+    // Historical entries keep their true entry timestamp via createdAt's
+    // default; only the calendar date portion is backdated for reporting.
+    const transactionDate = new Date(`${row.transactionDateStr}T12:00:00.000Z`);
+
+    const product = await tx.product.findUniqueOrThrow({ where: { id: row.productId } });
+    if (product.status !== 'ACTIVE') {
+      throw new BadRequestException('This product is inactive and cannot be selected for new sales.');
+    }
+
+    // Condition the UPDATE on having enough stock rather than checking then
+    // writing separately — under concurrent sales of the same product, two
+    // reads could both pass a standalone check before either commits,
+    // driving shopQty negative. This makes it one atomic database operation.
+    // Rows within the same bulk batch selling the same product serialize
+    // correctly too, since they share this one transaction in order.
+    const result = await tx.product.updateMany({
+      where: { id: row.productId, shopQty: { gte: quantity } },
+      data: { shopQty: { decrement: quantity } },
+    });
+    if (result.count === 0) {
+      throw new BadRequestException('Insufficient stock available.');
+    }
+    const updatedProduct = await tx.product.findUniqueOrThrow({ where: { id: row.productId } });
+
+    // Atomic increment on the day row — safe under concurrent writers (Postgres
+    // serializes UPDATEs to the same row), unlike a count()-then-insert approach
+    // which two simultaneous sales could both read before either commits.
+    const updatedDay = await tx.businessDay.update({
+      where: { id: day.id },
+      data: { saleCounter: { increment: 1 } },
+    });
+    const transactionId = `SL-${day.date.replace(/-/g, '')}-${String(updatedDay.saleCounter).padStart(4, '0')}`;
+
+    const sale = await tx.sale.create({
+      data: {
+        transactionId,
+        productId: row.productId,
+        resellerId: row.resellerId,
+        counterUserId: actingUserId,
+        quantity,
+        unitPrice: row.unitPrice,
+        price: total,
+        commission: row.commission,
+        dayId: day.id,
+        transactionDate,
+      },
+      include: saleInclude,
+    });
+
+    await this.auditService.log(
+      {
+        userId: actingUserId,
+        action: isHistorical ? 'SALE_ADDED_HISTORICAL' : 'SALE_CREATED',
+        entityType: 'Sale',
+        entityId: sale.id,
+        details: {
+          transactionId: sale.transactionId,
+          product: product.name,
+          reseller: reseller.fullName,
+          quantity,
+          unitPrice: row.unitPrice,
+          total,
+          commission: row.commission,
+          remainingShopQty: updatedProduct.shopQty,
+          transactionDate: row.transactionDateStr,
+          ...(isHistorical ? { reason: row.reason } : {}),
+        },
+      },
+      tx,
+    );
+
+    return sale;
+  }
+
+  /**
+   * Bulk sale creation — validates and creates every row inside ONE database
+   * transaction, so the batch is genuinely all-or-nothing: if row 11 of 12
+   * fails, rows 1-10 are rolled back too, never left half-recorded. Each row
+   * goes through the exact same createSaleRowInTx() as a single sale, so
+   * Bulk Entry can never apply different business rules than Single Entry.
+   */
+  async createSalesBulk(dto: BulkCreateSaleDto, actingUser: AuthenticatedUser) {
+    if (!dto.rows?.length) {
+      throw new BadRequestException('At least one row is required.');
+    }
+    if (dto.rows.length > MAX_BULK_ROWS) {
+      throw new BadRequestException(`Bulk entry is limited to ${MAX_BULK_ROWS} rows at a time.`);
+    }
+
+    const todayStr = dateToDayString();
+    // Resolving/creating each distinct BusinessDay happens outside the atomic
+    // block on purpose — a day row existing without a sale attached to it is
+    // not a correctness problem, so it doesn't need to roll back with the
+    // batch (exactly like the single-sale path, which resolves its day the
+    // same way before opening its own transaction).
+    const distinctDates = [...new Set(dto.rows.map((r) => r.transactionDate ?? todayStr))];
+    const daysByDate = new Map<string, BusinessDay>();
+    for (const date of distinctDates) {
+      daysByDate.set(date, await this.businessDayService.getOrCreateForDate(date));
+    }
+
+    const createdSales = await this.prisma.$transaction(
+      async (tx) => {
+        const results: Prisma.PromiseReturnType<typeof this.createSaleRowInTx>[] = [];
+
+        for (let i = 0; i < dto.rows.length; i++) {
+          const row = dto.rows[i];
+          const transactionDateStr = row.transactionDate ?? todayStr;
+          const day = daysByDate.get(transactionDateStr)!;
+
+          try {
+            const sale = await this.createSaleRowInTx(
+              tx,
+              day,
+              {
+                productId: row.productId,
+                resellerId: row.resellerId,
+                quantity: row.quantity ?? 1,
+                unitPrice: row.unitPrice,
+                commission: row.commission,
+                transactionDateStr,
+                reason: row.reason,
+              },
+              actingUser.id,
+            );
+            results.push(sale);
+          } catch (err) {
+            const message = err instanceof HttpException ? err.message : 'Unexpected error while recording this row.';
+            throw new BadRequestException(`Row ${i + 1}: ${message}`);
+          }
+        }
+
+        await this.auditService.log(
+          {
+            userId: actingUser.id,
+            action: 'SALES_BULK_CREATED',
+            entityType: 'Sale',
+            entityId: results[0].id,
+            details: {
+              count: results.length,
+              transactionIds: results.map((s) => s.transactionId),
+            },
+          },
+          tx,
+        );
+
+        return results;
+      },
+      { timeout: 15000 + dto.rows.length * 1500 },
+    );
+
+    const productIds = [...new Set(dto.rows.map((r) => r.productId))];
+    this.realtimeGateway.emit('sale:created', { count: createdSales.length });
+    productIds.forEach((productId) => this.realtimeGateway.emit('inventory:updated', { productId }));
+
+    return { count: createdSales.length, sales: createdSales };
   }
 
   /**

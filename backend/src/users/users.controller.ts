@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common
 import { Role } from '@prisma/client';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { BulkCreateUserDto } from './dto/bulk-create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -34,6 +35,21 @@ export class UsersController {
       details: { name: created.name, role: created.role },
     });
     return created;
+  }
+
+  @Post('bulk')
+  async createBulk(@Body() dto: BulkCreateUserDto, @CurrentUser() user: AuthenticatedUser) {
+    const result = await this.usersService.createBulk(dto);
+    await this.auditService.log({
+      userId: user.id,
+      action: 'STAFF_BULK_CREATED',
+      entityType: 'User',
+      entityId: result.users[0].id,
+      // Never include the password here — only what's already shown in the
+      // staff list, same as every other audit entry for this entity type.
+      details: { count: result.count, accounts: result.users.map((u) => ({ name: u.name, email: u.email, role: u.role })) },
+    });
+    return result;
   }
 
   @Patch(':id')
