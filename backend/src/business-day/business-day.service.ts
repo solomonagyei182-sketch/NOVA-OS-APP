@@ -13,7 +13,13 @@ export class BusinessDayService {
   ) {}
 
   async getOrCreateToday() {
-    const date = dateToDayString();
+    return this.getOrCreateForDate(dateToDayString());
+  }
+
+  /** Same upsert as getOrCreateToday(), generalized to any date — a fresh
+   * historical BusinessDay starts OPEN just like today's, so a newly
+   * backfilled date is immediately editable/correctable without extra steps. */
+  async getOrCreateForDate(date: string) {
     return this.prisma.businessDay.upsert({
       where: { date },
       update: {},

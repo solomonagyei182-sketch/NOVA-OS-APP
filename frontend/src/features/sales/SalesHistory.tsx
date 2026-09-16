@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { Search, Pencil, History } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Search, Pencil, History, Trash2, Plus, Receipt } from 'lucide-react';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
+import { Badge } from '../../components/Badge';
+import { Button } from '../../components/Button';
 import { DataTable, type Column } from '../../components/DataTable';
 import { RowActionsMenu } from '../../components/RowActionsMenu';
 import { RecordHistoryModal } from '../../components/RecordHistoryModal';
@@ -9,34 +11,60 @@ import { useActiveResellers, useProducts } from '../../lib/queries';
 import { useAuth } from '../auth/AuthContext';
 import { useSales, type SalesFilters } from './hooks';
 import { CorrectSaleModal } from './CorrectSaleModal';
+import { DeleteSaleModal } from './DeleteSaleModal';
+import { AddHistoricalTransactionModal } from './AddHistoricalTransactionModal';
 import type { Sale } from '../../lib/types';
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
+}
+
 function formatMoney(n: number) {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function todayInput() {
+  return new Date().toLocaleDateString('en-CA');
 }
 
 export function SalesHistory() {
   const { user } = useAuth();
   const isManager = user?.role === 'MANAGER';
-  const [filters, setFilters] = useState<SalesFilters>({ sortBy: 'createdAt', sortDir: 'desc' });
+  const [filters, setFilters] = useState<SalesFilters>({ sortBy: 'transactionDate', sortDir: 'desc' });
   const { data: products } = useProducts();
   const { data: resellers } = useActiveResellers();
   const salesQuery = useSales(filters);
   const [correcting, setCorrecting] = useState<Sale | null>(null);
+  const [deleting, setDeleting] = useState<Sale | null>(null);
   const [historySale, setHistorySale] = useState<Sale | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   function updateFilter<K extends keyof SalesFilters>(key: K, value: SalesFilters[K]) {
     setFilters((prev) => ({ ...prev, [key]: value || undefined }));
   }
 
-  function canCorrect(sale: Sale) {
+  function canModify(sale: Sale) {
+    if (sale.status === 'DELETED') return false;
     if (sale.day.status === 'CLOSED') return false;
     return isManager || sale.counterUserId === user?.id;
   }
+
+  function disabledReason(sale: Sale) {
+    if (sale.status === 'DELETED') return 'This transaction has already been deleted.';
+    if (sale.day.status === 'CLOSED') return 'This day is closed. Ask a manager to reopen it first.';
+    return 'You can only modify your own transactions.';
+  }
+
+  const isSingleDateSelected = Boolean(filters.dateFrom && filters.dateFrom === filters.dateTo);
+  const rows = salesQuery.data ?? [];
+  const summary = useMemo(() => {
+    const active = rows.filter((r) => r.status === 'ACTIVE');
+    return { count: active.length, total: active.reduce((sum, r) => sum + r.price, 0) };
+  }, [rows]);
 
   const columns: Column<Sale>[] = [
     { key: 'transactionId', header: 'Transaction ID', render: (r) => <span className="font-mono text-xs">{r.transactionId}</span> },
@@ -46,7 +74,18 @@ export function SalesHistory() {
     { key: 'price', header: 'Total', render: (r) => formatMoney(r.price) },
     { key: 'commission', header: 'Reseller Commission', render: (r) => formatMoney(r.commission) },
     { key: 'counterUser', header: 'Recorded by', render: (r) => r.counterUser.name },
-    { key: 'createdAt', header: 'Date & time', render: (r) => formatDateTime(r.createdAt) },
+    { key: 'transactionDate', header: 'Transaction date', render: (r) => formatDate(r.transactionDate) },
+    { key: 'createdAt', header: 'Entered', render: (r) => formatDateTime(r.createdAt) },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (r) =>
+        r.status === 'DELETED' ? (
+          <Badge tone="danger">Deleted</Badge>
+        ) : (
+          <Badge tone="success">Active</Badge>
+        ),
+    },
     {
       key: 'actions',
       header: 'Actions',
@@ -55,16 +94,26 @@ export function SalesHistory() {
           label={`Actions for ${r.transactionId}`}
           actions={[
             {
-              label: 'Correct sale',
+              label: 'Correct transaction',
               icon: Pencil,
               onClick: () => setCorrecting(r),
-              disabled: !canCorrect(r),
-              disabledReason:
-                r.day.status === 'CLOSED'
-                  ? 'This sale is in a closed business day. Reopen the day to correct it.'
-                  : 'You can only correct your own sales.',
+              disabled: !canModify(r),
+              disabledReason: disabledReason(r),
             },
-            { label: 'History', icon: History, onClick: () => setHistorySale(r), hidden: !isManager },
+            {
+              label: 'Delete transaction',
+              icon: Trash2,
+              tone: 'danger',
+              onClick: () => setDeleting(r),
+              disabled: !canModify(r),
+              disabledReason: disabledReason(r),
+            },
+            {
+              label: 'History',
+              icon: History,
+              onClick: () => setHistorySale(r),
+              hidden: !isManager && r.counterUserId !== user?.id,
+            },
           ]}
         />
       ),
@@ -73,6 +122,19 @@ export function SalesHistory() {
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-fg">Transaction History</h2>
+          <p className="text-sm text-fg-muted">
+            Find past transactions, add a missed sale to an earlier date, or correct/delete an existing one.
+          </p>
+        </div>
+        <Button onClick={() => setAddOpen(true)}>
+          <Plus size={16} />
+          Add historical transaction
+        </Button>
+      </div>
+
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
         <div className="relative">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
@@ -83,7 +145,7 @@ export function SalesHistory() {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
           <Select
             aria-label="Filter by product"
             onChange={(e) => updateFilter('productId', e.target.value)}
@@ -114,11 +176,21 @@ export function SalesHistory() {
           <Input type="date" aria-label="To date" onChange={(e) => updateFilter('dateTo', e.target.value)} />
 
           <Select
+            aria-label="Status"
+            onChange={(e) => updateFilter('status', e.target.value as SalesFilters['status'])}
+            defaultValue=""
+          >
+            <option value="">Active only</option>
+            <option value="DELETED">Deleted only</option>
+            <option value="ALL">All (active + deleted)</option>
+          </Select>
+
+          <Select
             aria-label="Sort by"
             onChange={(e) => updateFilter('sortBy', e.target.value as SalesFilters['sortBy'])}
-            defaultValue="createdAt"
+            defaultValue="transactionDate"
           >
-            <option value="createdAt">Sort: Date</option>
+            <option value="transactionDate">Sort: Transaction date</option>
             <option value="price">Sort: Price</option>
             <option value="commission">Sort: Commission</option>
           </Select>
@@ -132,16 +204,39 @@ export function SalesHistory() {
             <option value="asc">Oldest / lowest first</option>
           </Select>
         </div>
+
+        <div className="flex items-center gap-3 rounded-xl bg-brand-tint px-4 py-3">
+          <Receipt size={18} className="shrink-0 text-brand-tint-fg" />
+          <div className="text-sm text-brand-tint-fg">
+            {isSingleDateSelected ? (
+              <>
+                <span className="font-semibold">{formatDate(`${filters.dateFrom}T00:00:00`)}</span> — {summary.count}{' '}
+                transaction{summary.count === 1 ? '' : 's'} · Total Sales: {formatMoney(summary.total)}
+              </>
+            ) : (
+              <>
+                {summary.count} transaction{summary.count === 1 ? '' : 's'} shown · Total Sales:{' '}
+                {formatMoney(summary.total)}
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       <DataTable
         columns={columns}
-        rows={salesQuery.data ?? []}
+        rows={rows}
         keyField={(r) => r.id}
-        emptyMessage="No sales recorded yet."
+        emptyMessage="No transactions found for these filters."
       />
 
+      <AddHistoricalTransactionModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        defaultDate={isSingleDateSelected && filters.dateFrom ? filters.dateFrom : todayInput()}
+      />
       <CorrectSaleModal sale={correcting} onClose={() => setCorrecting(null)} />
+      <DeleteSaleModal sale={deleting} onClose={() => setDeleting(null)} />
       <RecordHistoryModal
         open={Boolean(historySale)}
         onClose={() => setHistorySale(null)}

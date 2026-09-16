@@ -79,6 +79,7 @@ model User {
   stockAcceptances         StockAcceptance[] @relation("StockAcceptances")
   stockRequestsMade        StockRequest[]    @relation("StockRequestsMade")
   stockRequestsFulfilled   StockRequest[]    @relation("StockRequestsFulfilled")
+  salesDeleted             Sale[]            @relation("SalesDeletedBy")
 }
 
 model Session {
@@ -275,28 +276,51 @@ model BusinessDay {
   @@index([status])
 }
 
+enum SaleStatus {
+  ACTIVE
+  DELETED
+}
+
+// transactionDate is the actual calendar date the sale happened on — for a
+// same-day sale this equals createdAt's date, but a historical entry (added
+// later for a missed past sale) needs them to diverge: createdAt is always
+// the true entry timestamp, transactionDate is whatever date the user
+// specifies. All date-range reporting/calculation queries filter on
+// transactionDate, never createdAt, so a backfilled sale lands on the day it
+// actually happened rather than the day someone got around to entering it.
 model Sale {
-  id            String      @id @default(cuid())
-  transactionId String      @unique
-  productId     String
-  product       Product     @relation(fields: [productId], references: [id])
-  resellerId    String?
-  reseller      Reseller?   @relation(fields: [resellerId], references: [id])
-  counterUserId String
-  counterUser   User        @relation("CounterSales", fields: [counterUserId], references: [id])
-  quantity      Int         @default(1)
-  unitPrice     Float?
-  price         Float
-  commission    Float
-  dayId         String
-  day           BusinessDay @relation(fields: [dayId], references: [id])
-  createdAt     DateTime    @default(now())
+  id              String      @id @default(cuid())
+  transactionId   String      @unique
+  productId       String
+  product         Product     @relation(fields: [productId], references: [id])
+  resellerId      String?
+  reseller        Reseller?   @relation(fields: [resellerId], references: [id])
+  counterUserId   String
+  counterUser     User        @relation("CounterSales", fields: [counterUserId], references: [id])
+  quantity        Int         @default(1)
+  unitPrice       Float?
+  price           Float
+  commission      Float
+  dayId           String
+  day             BusinessDay @relation(fields: [dayId], references: [id])
+  transactionDate DateTime
+  status          SaleStatus  @default(ACTIVE)
+  createdAt       DateTime    @default(now())
+
+  // Soft-delete only — a deleted Sale row is never physically removed, so
+  // the audit trail (and this denormalized who/when) can always show it
+  // existed. Reason lives on the AuditLog entry, not here.
+  deletedAt   DateTime?
+  deletedById String?
+  deletedBy   User?     @relation("SalesDeletedBy", fields: [deletedById], references: [id])
 
   @@index([productId])
   @@index([resellerId])
   @@index([counterUserId])
   @@index([dayId])
   @@index([createdAt])
+  @@index([transactionDate])
+  @@index([status])
 }
 
 model Customer {

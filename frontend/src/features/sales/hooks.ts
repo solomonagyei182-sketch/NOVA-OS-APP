@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, ApiError } from '../../lib/api';
-import type { Sale } from '../../lib/types';
+import type { Sale, SaleStatus } from '../../lib/types';
 
 export type SalesFilters = {
   search?: string;
@@ -11,8 +11,10 @@ export type SalesFilters = {
   counterUserId?: string;
   dateFrom?: string;
   dateTo?: string;
-  sortBy?: 'createdAt' | 'price' | 'commission';
+  sortBy?: 'createdAt' | 'price' | 'commission' | 'transactionDate';
   sortDir?: 'asc' | 'desc';
+  /** Omitted = ACTIVE only (the default everywhere). 'ALL' includes deleted transactions — Transaction History only. */
+  status?: SaleStatus | 'ALL';
 };
 
 function buildQuery(filters: SalesFilters) {
@@ -40,16 +42,21 @@ export function useTodaySummary() {
   });
 }
 
+export type CreateSaleInput = {
+  productId: string;
+  resellerId: string;
+  quantity?: number;
+  unitPrice: number;
+  commission: number;
+  /** Omitted = today (normal sale). A past date makes this a historical entry and requires reason. */
+  transactionDate?: string;
+  reason?: string;
+};
+
 export function useCreateSale() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: {
-      productId: string;
-      resellerId: string;
-      quantity?: number;
-      unitPrice: number;
-      commission: number;
-    }) => api.post<Sale>('/sales', data),
+    mutationFn: (data: CreateSaleInput) => api.post<Sale>('/sales', data),
     onSuccess: (sale) => {
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
@@ -83,5 +90,22 @@ export function useCorrectSale() {
       toast.success('Sale corrected.');
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not correct sale.'),
+  });
+}
+
+export function useDeleteSale() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      api.patch<Sale>(`/sales/${id}/delete`, { reason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['calculations'] });
+      toast.success('Transaction deleted.');
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not delete transaction.'),
   });
 }

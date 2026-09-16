@@ -250,6 +250,8 @@ export type ProductRangeCalculations = {
   totalCommission: number;
 };
 
+export type SaleStatus = 'ACTIVE' | 'DELETED';
+
 export type Sale = {
   id: string;
   transactionId: string;
@@ -261,7 +263,13 @@ export type Sale = {
   price: number;
   commission: number;
   dayId: string;
+  /** The actual date the sale happened — independent of createdAt for a historical (backdated) entry. */
+  transactionDate: string;
+  status: SaleStatus;
   createdAt: string;
+  deletedAt: string | null;
+  deletedById: string | null;
+  deletedBy: { name: string } | null;
   product: { name: string };
   reseller: { fullName: string } | null;
   counterUser: { name: string };

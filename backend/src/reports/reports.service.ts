@@ -21,7 +21,7 @@ export class ReportsService {
 
     for (const [key, [from, to]] of Object.entries(periods)) {
       const aggregate = await this.prisma.sale.aggregate({
-        where: { createdAt: { gte: from, lte: to } },
+        where: { transactionDate: { gte: from, lte: to }, status: 'ACTIVE' },
         _sum: { price: true, commission: true, quantity: true },
         _count: true,
       });
@@ -73,7 +73,7 @@ export class ReportsService {
     const to = endOfMonth(new Date(y, m, 1));
 
     const sales = await this.prisma.sale.findMany({
-      where: { createdAt: { gte: from, lte: to } },
+      where: { transactionDate: { gte: from, lte: to }, status: 'ACTIVE' },
       select: {
         counterUserId: true,
         price: true,
@@ -126,8 +126,9 @@ export class ReportsService {
 
     const sales = await this.prisma.sale.findMany({
       where: {
-        createdAt: { gte: from, lte: to },
+        transactionDate: { gte: from, lte: to },
         resellerId: filters.resellerId ?? { not: null },
+        status: 'ACTIVE',
       },
       select: {
         resellerId: true,
@@ -185,8 +186,9 @@ export class ReportsService {
       this.prisma.product.count({ where: { status: 'ACTIVE' } }),
       this.prisma.reseller.count(),
       this.prisma.reseller.count({ where: { status: 'ACTIVE' } }),
-      this.prisma.sale.aggregate({ _count: true, _sum: { price: true } }),
+      this.prisma.sale.aggregate({ where: { status: 'ACTIVE' }, _count: true, _sum: { price: true } }),
       this.prisma.sale.findMany({
+        where: { status: 'ACTIVE' },
         orderBy: { createdAt: 'desc' },
         take: 5,
         include: { product: { select: { name: true } }, reseller: { select: { fullName: true } } },

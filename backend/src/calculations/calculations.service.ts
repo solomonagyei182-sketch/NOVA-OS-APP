@@ -22,14 +22,15 @@ export class CalculationsService {
       };
     }
 
+    const dayWhere = { dayId: day.id, status: 'ACTIVE' as const };
     const [grouped, aggregate] = await Promise.all([
       this.prisma.sale.groupBy({
         by: ['productId'],
-        where: { dayId: day.id },
+        where: dayWhere,
         _sum: { quantity: true, price: true },
       }),
       this.prisma.sale.aggregate({
-        where: { dayId: day.id },
+        where: dayWhere,
         _sum: { commission: true },
         _count: true,
       }),
@@ -65,7 +66,8 @@ export class CalculationsService {
    */
   async allProductsInRange(dateFrom: string, dateTo: string) {
     const where = {
-      createdAt: { gte: new Date(dateFrom), lte: new Date(`${dateTo}T23:59:59.999`) },
+      transactionDate: { gte: new Date(dateFrom), lte: new Date(`${dateTo}T23:59:59.999`) },
+      status: 'ACTIVE' as const,
     };
 
     const [grouped, aggregate] = await Promise.all([
@@ -108,10 +110,11 @@ export class CalculationsService {
     const aggregate = await this.prisma.sale.aggregate({
       where: {
         productId,
-        createdAt: {
+        transactionDate: {
           gte: new Date(dateFrom),
           lte: new Date(`${dateTo}T23:59:59.999`),
         },
+        status: 'ACTIVE',
       },
       _sum: { quantity: true, price: true, commission: true },
       _count: true,

@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common
 import { SalesService, type SalesFilters } from './sales.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { CorrectSaleDto } from './dto/correct-sale.dto';
+import { DeleteSaleDto } from './dto/delete-sale.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/types';
 
@@ -21,6 +22,12 @@ export class SalesController {
     return this.salesService.correctSale(id, dto, user);
   }
 
+  // Same ownership boundary as correct() — enforced in the service, not here.
+  @Patch(':id/delete')
+  delete(@Param('id') id: string, @Body() dto: DeleteSaleDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.salesService.deleteSale(id, dto, user);
+  }
+
   @Get()
   list(
     @CurrentUser() user: AuthenticatedUser,
@@ -32,6 +39,7 @@ export class SalesController {
     @Query('dateTo') dateTo?: string,
     @Query('sortBy') sortBy?: SalesFilters['sortBy'],
     @Query('sortDir') sortDir?: SalesFilters['sortDir'],
+    @Query('status') status?: SalesFilters['status'],
   ) {
     // A Counter can only ever see their own sales — their id is forced here
     // server-side, ignoring whatever counterUserId they might pass, so this
@@ -48,6 +56,7 @@ export class SalesController {
       dateTo,
       sortBy,
       sortDir,
+      status,
     });
   }
 
